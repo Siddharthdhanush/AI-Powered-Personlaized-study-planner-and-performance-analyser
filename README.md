@@ -1,0 +1,2 @@
+# AI-Powered-Personlaized-study-planner-and-performance-analyser
+AI-powered personalized study planner and performance analyzer that generates adaptive study timetables, dynamically creates topic-wise MCQ and descriptive questions using Ollama, evaluates learning progress with ML, predicts exam readiness, tracks revision efficiency, and provides intelligent recommendations through an interactive dashboard.
