@@ -395,7 +395,7 @@ function Dashboard() {
                 </div>
                 {mlAnalytics.weak_topics && mlAnalytics.weak_topics.length > 0 && (
                   <div style={{marginTop: '8px', borderTop: '1px dashed #bfdbfe', paddingTop: '8px'}}>
-                    <span style={{color: 'var(--danger-color)', fontSize: '0.9rem', fontWeight: 700, display: 'block', marginBottom: '4px'}}>⚠️ Weak Topics (< 60% score):</span>
+                    <span style={{color: 'var(--danger-color)', fontSize: '0.9rem', fontWeight: 700, display: 'block', marginBottom: '4px'}}>⚠️ Weak Topics (&lt; 60% score):</span>
                     <ul style={{margin: 0, paddingLeft: '20px', fontSize: '0.85rem', color: 'var(--text-primary)'}}>
                       {mlAnalytics.weak_topics.map((t, idx) => (
                         <li key={idx}>{t}</li>
