@@ -19,17 +19,43 @@ def _unwrap_response(parsed):
                 return v
     return parsed
 
+def _get_available_model():
+    """
+    Checks the local Ollama instance and returns the best model.
+    Prioritizes llama3.2 (faster/lightweight) over llama3.
+    """
+    try:
+        res = ollama.list()
+        models_list = res.get("models", [])
+        names = []
+        if models_list:
+            names = [m.model for m in models_list] if hasattr(models_list[0], 'model') else [m.get("name") for m in models_list]
+        
+        for name in names:
+            if "llama3.2" in name:
+                return name
+        for name in names:
+            if "llama3" in name:
+                return name
+        if names:
+            return names[0]
+    except Exception as e:
+        print(f"Failed to detect local Ollama models: {e}")
+    return "llama3"
+
 def get_llama3_response(prompt_text: str, json_format: bool = False):
     """
-    Core function to communicate with local Ollama instance running Llama 3.
+    Core function to communicate with local Ollama instance running Llama 3/3.2.
     """
     messages = [
         {"role": "system", "content": "You are an intelligent educational assistant. Always return valid JSON when asked."},
         {"role": "user", "content": prompt_text}
     ]
     
+    selected_model = _get_available_model()
+    
     kwargs = {
-        "model": "llama3",
+        "model": selected_model,
         "messages": messages,
     }
     

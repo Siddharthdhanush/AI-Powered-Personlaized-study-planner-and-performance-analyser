@@ -120,6 +120,8 @@ def update_preferences(
     if prefs_data.college_end_time is not None: prefs.college_end_time = prefs_data.college_end_time
     if prefs_data.busy_start_time is not None: prefs.busy_start_time = prefs_data.busy_start_time
     if prefs_data.busy_end_time is not None: prefs.busy_end_time = prefs_data.busy_end_time
+    if prefs_data.weekly_college_timings is not None: prefs.weekly_college_timings = prefs_data.weekly_college_timings
+    if prefs_data.weekly_busy_timings is not None: prefs.weekly_busy_timings = prefs_data.weekly_busy_timings
     
     db.commit()
     db.refresh(prefs)

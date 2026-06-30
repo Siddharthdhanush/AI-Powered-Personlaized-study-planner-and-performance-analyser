@@ -31,6 +31,8 @@ class Preferences(Base):
     college_end_time = Column(String, default="16:00")
     busy_start_time = Column(String, default="18:00")
     busy_end_time = Column(String, default="19:00")
+    weekly_college_timings = Column(String, default="{}")
+    weekly_busy_timings = Column(String, default="{}")
 
     student = relationship("Student", back_populates="preferences")
 

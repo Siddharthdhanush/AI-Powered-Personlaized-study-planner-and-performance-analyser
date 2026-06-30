@@ -10,47 +10,66 @@ def get_next_available_slot(db: Session, student_id: int, target_date: date, cur
     Finds the next valid slot for a session that:
     1. Does not overlap with college hours.
     2. Does not overlap with busy hours.
-    3. Does not overlap with sleeping hours.
+    3. Does not overlap with sleeping/morning chores hours.
     4. Does not overlap with existing scheduled plans for other subjects.
     
     Returns (actual_date, start_datetime, end_datetime)
     """
-    # Parse busy timings safely
-    college_start = datetime.strptime(getattr(prefs, 'college_start_time', '09:00') or '09:00', "%H:%M").time()
-    college_end = datetime.strptime(getattr(prefs, 'college_end_time', '16:00') or '16:00', "%H:%M").time()
+    import json
     
-    busy_start = datetime.strptime(getattr(prefs, 'busy_start_time', '18:00') or '18:00', "%H:%M").time()
-    busy_end = datetime.strptime(getattr(prefs, 'busy_end_time', '19:00') or '19:00', "%H:%M").time()
+    # Parse weekly configs if set, fallback to default prefs values
+    weekly_college = {}
+    weekly_busy = {}
     
+    if getattr(prefs, 'weekly_college_timings', None):
+        try:
+            weekly_college = json.loads(prefs.weekly_college_timings)
+        except:
+            pass
+            
+    if getattr(prefs, 'weekly_busy_timings', None):
+        try:
+            weekly_busy = json.loads(prefs.weekly_busy_timings)
+        except:
+            pass
+
     sleep_t = datetime.strptime(prefs.sleep_time, "%H:%M").time()
-    wake_t = datetime.strptime(prefs.wake_time, "%H:%M").time()
+    study_start_t = datetime.strptime(prefs.study_start_time, "%H:%M").time()
     
     proposed_start = datetime.combine(target_date, current_time.time())
     
     attempts = 0
     while attempts < 1000:
+        day_name = proposed_start.strftime("%A") # "Monday", "Tuesday", etc.
+        
+        # 1. Sleep/morning chores hours overlap (between sleep_t and study_start_t)
         start_time_only = proposed_start.time()
         proposed_end = proposed_start + timedelta(minutes=duration_minutes)
         end_time_only = proposed_end.time()
         
-        # 1. Sleep hours overlap
         in_sleep = False
-        if sleep_t > wake_t:
-            if start_time_only >= sleep_t or start_time_only < wake_t or end_time_only > sleep_t or end_time_only <= wake_t:
+        if sleep_t > study_start_t:
+            if start_time_only >= sleep_t or start_time_only < study_start_t or end_time_only > sleep_t or end_time_only <= study_start_t:
                 in_sleep = True
         else:
-            if sleep_t <= start_time_only < wake_t or sleep_t < end_time_only <= wake_t:
+            if sleep_t <= start_time_only < study_start_t or sleep_t < end_time_only <= study_start_t:
                 in_sleep = True
                 
         if in_sleep:
             if start_time_only >= sleep_t:
-                proposed_start = datetime.combine(proposed_start.date() + timedelta(days=1), wake_t)
+                proposed_start = datetime.combine(proposed_start.date() + timedelta(days=1), study_start_t)
             else:
-                proposed_start = datetime.combine(proposed_start.date(), wake_t)
+                proposed_start = datetime.combine(proposed_start.date(), study_start_t)
             attempts += 1
             continue
             
-        # 2. College hours overlap
+        # 2. College hours overlap (customized by day)
+        day_college = weekly_college.get(day_name, {"start": prefs.college_start_time, "end": prefs.college_end_time})
+        c_start_str = day_college.get("start") or prefs.college_start_time or "09:00"
+        c_end_str = day_college.get("end") or prefs.college_end_time or "16:00"
+        college_start = datetime.strptime(c_start_str, "%H:%M").time()
+        college_end = datetime.strptime(c_end_str, "%H:%M").time()
+        
         in_college = False
         if college_start < college_end:
             if not (end_time_only <= college_start or start_time_only >= college_end):
@@ -60,7 +79,13 @@ def get_next_available_slot(db: Session, student_id: int, target_date: date, cur
             attempts += 1
             continue
             
-        # 3. Busy hours overlap
+        # 3. Busy hours overlap (customized by day)
+        day_busy = weekly_busy.get(day_name, {"start": prefs.busy_start_time, "end": prefs.busy_end_time})
+        b_start_str = day_busy.get("start") or prefs.busy_start_time or "18:00"
+        b_end_str = day_busy.get("end") or prefs.busy_end_time or "19:00"
+        busy_start = datetime.strptime(b_start_str, "%H:%M").time()
+        busy_end = datetime.strptime(b_end_str, "%H:%M").time()
+        
         in_busy = False
         if busy_start < busy_end:
             if not (end_time_only <= busy_start or start_time_only >= busy_end):

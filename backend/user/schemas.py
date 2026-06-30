@@ -32,6 +32,8 @@ class PreferencesBase(BaseModel):
     college_end_time: Optional[str] = "16:00"
     busy_start_time: Optional[str] = "18:00"
     busy_end_time: Optional[str] = "19:00"
+    weekly_college_timings: Optional[str] = "{}"
+    weekly_busy_timings: Optional[str] = "{}"
 
 class PreferencesUpdate(PreferencesBase):
     daily_hours: Optional[float] = None
@@ -43,6 +45,8 @@ class PreferencesUpdate(PreferencesBase):
     college_end_time: Optional[str] = None
     busy_start_time: Optional[str] = None
     busy_end_time: Optional[str] = None
+    weekly_college_timings: Optional[str] = None
+    weekly_busy_timings: Optional[str] = None
 
 class PreferencesOut(PreferencesBase):
     id: int

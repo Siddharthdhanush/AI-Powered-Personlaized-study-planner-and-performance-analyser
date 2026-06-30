@@ -15,6 +15,8 @@ function ProfilePreferences() {
     busy_start_time: '18:00',
     busy_end_time: '19:00'
   });
+  const [weeklyCollege, setWeeklyCollege] = useState({});
+  const [weeklyBusy, setWeeklyBusy] = useState({});
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -27,6 +29,19 @@ function ProfilePreferences() {
         ]);
         setProfile(profRes.data);
         setPreferences(prefRes.data);
+        
+        try {
+          setWeeklyCollege(JSON.parse(prefRes.data.weekly_college_timings || '{}'));
+        } catch(e) {
+          setWeeklyCollege({});
+        }
+        
+        try {
+          setWeeklyBusy(JSON.parse(prefRes.data.weekly_busy_timings || '{}'));
+        } catch(e) {
+          setWeeklyBusy({});
+        }
+        
         setLoading(false);
       } catch (err) {
         navigate('/login');
@@ -37,6 +52,52 @@ function ProfilePreferences() {
 
   const handlePrefChange = (e) => {
     setPreferences({ ...preferences, [e.target.name]: e.target.value });
+  };
+
+  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+  const handleDayCollegeChange = (day, field, value) => {
+    setWeeklyCollege(prev => ({
+      ...prev,
+      [day]: {
+        ...(prev[day] || { start: preferences.college_start_time || '09:00', end: preferences.college_end_time || '16:00' }),
+        [field]: value
+      }
+    }));
+  };
+
+  const handleDayBusyChange = (day, field, value) => {
+    setWeeklyBusy(prev => ({
+      ...prev,
+      [day]: {
+        ...(prev[day] || { start: preferences.busy_start_time || '17:00', end: preferences.busy_end_time || '18:30' }),
+        [field]: value
+      }
+    }));
+  };
+
+  const toggleUseCustomDay = (day, type) => {
+    if (type === 'college') {
+      setWeeklyCollege(prev => {
+        const updated = { ...prev };
+        if (updated[day]) {
+          delete updated[day];
+        } else {
+          updated[day] = { start: preferences.college_start_time || '09:00', end: preferences.college_end_time || '16:00' };
+        }
+        return updated;
+      });
+    } else {
+      setWeeklyBusy(prev => {
+        const updated = { ...prev };
+        if (updated[day]) {
+          delete updated[day];
+        } else {
+          updated[day] = { start: preferences.busy_start_time || '17:00', end: preferences.busy_end_time || '18:30' };
+        }
+        return updated;
+      });
+    }
   };
 
   const handleSavePrefs = async (e) => {
@@ -51,7 +112,9 @@ function ProfilePreferences() {
         college_start_time: preferences.college_start_time || '09:00',
         college_end_time: preferences.college_end_time || '16:00',
         busy_start_time: preferences.busy_start_time || '18:00',
-        busy_end_time: preferences.busy_end_time || '19:00'
+        busy_end_time: preferences.busy_end_time || '19:00',
+        weekly_college_timings: JSON.stringify(weeklyCollege),
+        weekly_busy_timings: JSON.stringify(weeklyBusy)
       });
       alert('Preferences saved successfully!');
     } catch (err) {
@@ -158,6 +221,106 @@ function ProfilePreferences() {
             
             <button type="submit" className="btn" style={{marginTop: '16px', width: '100%'}}>Save Preferences</button>
           </form>
+        </div>
+        
+        {/* Day-by-Day Custom Settings */}
+        <div className="glass-panel" style={{gridColumn: 'span 2', marginTop: '24px'}}>
+          <h2>Weekly Timetable (Custom College & Busy Timings)</h2>
+          <p style={{marginBottom: '20px', color: 'var(--text-secondary)'}}>Customize your schedule by day of week. If unchecked, the system defaults to the global timings above.</p>
+          
+          <div style={{display: 'flex', flexDirection: 'column', gap: '16px'}}>
+            {days.map(day => {
+              const customCollege = weeklyCollege[day];
+              const customBusy = weeklyBusy[day];
+              
+              return (
+                <div key={day} style={{
+                  display: 'grid', 
+                  gridTemplateColumns: '1.2fr 2fr 2fr', 
+                  gap: '16px', 
+                  padding: '16px', 
+                  background: '#f9fafb', 
+                  borderRadius: '12px', 
+                  border: '1px solid var(--border-color)',
+                  alignItems: 'center'
+                }}>
+                  <strong style={{fontSize: '1.05rem', color: 'var(--text-primary)'}}>{day}</strong>
+                  
+                  {/* College Timings */}
+                  <div style={{background: '#fff', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)'}}>
+                    <label style={{display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', marginBottom: '8px'}}>
+                      <input 
+                        type="checkbox" 
+                        checked={!!customCollege} 
+                        onChange={() => toggleUseCustomDay(day, 'college')}
+                        style={{accentColor: 'var(--accent-color)'}}
+                      />
+                      Custom College Hours
+                    </label>
+                    {customCollege ? (
+                      <div style={{display: 'flex', gap: '8px', alignItems: 'center'}}>
+                        <input 
+                          type="time" 
+                          className="input-field" 
+                          style={{padding: '4px 8px', fontSize: '0.8rem'}}
+                          value={customCollege.start} 
+                          onChange={e => handleDayCollegeChange(day, 'start', e.target.value)} 
+                        />
+                        <span style={{fontSize: '0.8rem', color: 'var(--text-secondary)'}}>to</span>
+                        <input 
+                          type="time" 
+                          className="input-field" 
+                          style={{padding: '4px 8px', fontSize: '0.8rem'}}
+                          value={customCollege.end} 
+                          onChange={e => handleDayCollegeChange(day, 'end', e.target.value)} 
+                        />
+                      </div>
+                    ) : (
+                      <span style={{fontSize: '0.85rem', color: 'var(--text-secondary)'}}>
+                        Using Global ({preferences.college_start_time || '09:00'} - {preferences.college_end_time || '16:00'})
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* Busy Timings */}
+                  <div style={{background: '#fff', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)'}}>
+                    <label style={{display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', marginBottom: '8px'}}>
+                      <input 
+                        type="checkbox" 
+                        checked={!!customBusy} 
+                        onChange={() => toggleUseCustomDay(day, 'busy')}
+                        style={{accentColor: 'var(--accent-color)'}}
+                      />
+                      Custom Busy Hours
+                    </label>
+                    {customBusy ? (
+                      <div style={{display: 'flex', gap: '8px', alignItems: 'center'}}>
+                        <input 
+                          type="time" 
+                          className="input-field" 
+                          style={{padding: '4px 8px', fontSize: '0.8rem'}}
+                          value={customBusy.start} 
+                          onChange={e => handleDayBusyChange(day, 'start', e.target.value)} 
+                        />
+                        <span style={{fontSize: '0.8rem', color: 'var(--text-secondary)'}}>to</span>
+                        <input 
+                          type="time" 
+                          className="input-field" 
+                          style={{padding: '4px 8px', fontSize: '0.8rem'}}
+                          value={customBusy.end} 
+                          onChange={e => handleDayBusyChange(day, 'end', e.target.value)} 
+                        />
+                      </div>
+                    ) : (
+                      <span style={{fontSize: '0.85rem', color: 'var(--text-secondary)'}}>
+                        Using Global ({preferences.busy_start_time || '18:00'} - {preferences.busy_end_time || '19:00'})
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>
