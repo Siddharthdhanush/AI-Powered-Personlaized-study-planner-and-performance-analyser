@@ -433,8 +433,8 @@ function Dashboard() {
 function WeeklyGridView({ timetable, getTopicName, handleCompleteSession, handleEditSession, preferences }) {
   const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   
-  // Dynamic wake/sleep hours based on preferences
-  const wakeHour = parseInt(preferences?.wake_time?.split(':')[0]) || 7;
+  // Dynamic wake/sleep hours based on preferences (starts grid from study start hour)
+  const wakeHour = parseInt(preferences?.study_start_time?.split(':')[0]) || parseInt(preferences?.wake_time?.split(':')[0]) || 7;
   const sleepHour = parseInt(preferences?.sleep_time?.split(':')[0]) || 22;
   
   const hourlySlots = [];
@@ -509,7 +509,7 @@ function WeeklyGridView({ timetable, getTopicName, handleCompleteSession, handle
                           {getTopicName(plan.topic_id)}
                         </div>
                         <div style={{ fontSize: '0.7rem', opacity: 0.9, marginTop: '2px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span>🕒 {plan.start_time}</span>
+                          <span>🕒 {plan.start_time} - {plan.end_time} ({plan.planned_minutes}m)</span>
                           <div style={{ display: 'flex', gap: '3px' }}>
                             <button 
                               onClick={() => handleCompleteSession(plan.plan_id)}

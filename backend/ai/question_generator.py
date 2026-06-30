@@ -10,9 +10,12 @@ def generate_quiz_for_topic(topic_name: str, num_questions: int = 10) -> list:
     Generate a quiz with exactly 10 questions for the topic: "{topic_name}".
     
     The quiz MUST contain a mix of different question types:
-    - 4 Multiple Choice Questions (MCQs): question_type = "MCQ". Must have options (option_a, option_b, option_c, option_d) and a single letter correct_option (A, B, C, or D).
-    - 3 Multi-Correct Questions: question_type = "MULTI_MCQ". Must have options (option_a, option_b, option_c, option_d). The correct_option MUST contain multiple letters separated by commas (e.g. "A,B" or "A,C,D") indicating all the correct answers.
+    - 4 Multiple Choice Questions (MCQs): question_type = "MCQ". You MUST provide all four choices (option_a, option_b, option_c, option_d) as non-empty distinct strings. correct_option must be a single letter (A, B, C, or D).
+    - 3 Multi-Correct Questions: question_type = "MULTI_MCQ". You MUST provide all four choices (option_a, option_b, option_c, option_d) as non-empty distinct strings. The correct_option MUST contain multiple letters separated by commas (e.g. "A,B" or "A,C,D") indicating all the correct options.
     - 3 Descriptive/Short Answer Questions: question_type = "DESCRIPTIVE". Set option_a, option_b, option_c, option_d to null. correct_option must contain the key points or a model answer.
+    
+    CRITICAL RULE FOR OPTIONS:
+    For all "MCQ" and "MULTI_MCQ" questions, you MUST fill "option_a", "option_b", "option_c", and "option_d" with the actual answers. Under no circumstances should they be null, empty, or missing.
     
     Difficulty distribution:
     - 4 Easy (2 MCQ, 1 MULTI_MCQ, 1 DESCRIPTIVE)
@@ -23,10 +26,10 @@ def generate_quiz_for_topic(topic_name: str, num_questions: int = 10) -> list:
     [
       {{
         "question_text": "...",
-        "option_a": "...",
-        "option_b": "...",
-        "option_c": "...",
-        "option_d": "...",
+        "option_a": "choice A text",
+        "option_b": "choice B text",
+        "option_c": "choice C text",
+        "option_d": "choice D text",
         "correct_option": "...", // e.g. "A" for MCQ, "A,C" for MULTI_MCQ, model answer for DESCRIPTIVE
         "explanation": "...",
         "difficulty": "Easy",

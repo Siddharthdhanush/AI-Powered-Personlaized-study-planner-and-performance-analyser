@@ -26,3 +26,6 @@ class StudyPlanUpdate(BaseModel):
     start_time: Optional[str] = None
     end_time: Optional[str] = None
 
+class GenerateTimetablePayload(BaseModel):
+    subject_ids: list[int]
+

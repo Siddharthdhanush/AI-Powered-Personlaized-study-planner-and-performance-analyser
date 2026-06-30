@@ -56,10 +56,10 @@ def get_next_available_slot(db: Session, student_id: int, target_date: date, cur
                 in_sleep = True
                 
         if in_sleep:
-            if start_time_only >= sleep_t:
-                proposed_start = datetime.combine(proposed_start.date() + timedelta(days=1), study_start_t)
-            else:
+            if start_time_only < study_start_t:
                 proposed_start = datetime.combine(proposed_start.date(), study_start_t)
+            else:
+                proposed_start = datetime.combine(proposed_start.date() + timedelta(days=1), study_start_t)
             attempts += 1
             continue
             
@@ -126,6 +126,9 @@ def get_next_available_slot(db: Session, student_id: int, target_date: date, cur
     return proposed_start.date(), proposed_start, proposed_start + timedelta(minutes=duration_minutes)
 
 def generate_timetable(db: Session, student_id: int, subject_id: int):
+    return generate_timetable_multiple(db, student_id, [subject_id])
+
+def generate_timetable_multiple(db: Session, student_id: int, subject_ids: list[int]):
     from sqlalchemy import func
     # 1. Fetch preferences
     prefs = db.query(Preferences).filter(Preferences.student_id == student_id).first()
@@ -133,14 +136,19 @@ def generate_timetable(db: Session, student_id: int, subject_id: int):
         raise HTTPException(status_code=400, detail="Student preferences not set")
     daily_minutes_available = int(prefs.daily_hours * 60)
 
-    # 2. Fetch Exam Date
-    exam = db.query(Exam).filter(Exam.subject_id == subject_id).first()
-    if not exam:
-        raise HTTPException(status_code=400, detail="Exam date not set for this subject")
+    # 2. Fetch Exams for the selected subjects
+    exams = db.query(Exam).filter(Exam.subject_id.in_(subject_ids)).all()
+    if not exams:
+        raise HTTPException(status_code=400, detail="Exam dates not set for selected subjects")
     
-    # Initialize topics tracking and prioritize weak topics (with lower quiz scores) first
+    # Map subject_id to exam_date
+    exam_dates = {e.subject_id: e.exam_date for e in exams}
+    
+    # 3. Fetch Topics for all selected subjects
+    topics_query = db.query(Topic).filter(Topic.subject_id.in_(subject_ids)).all()
+    
+    # Initialize topics tracking and prioritize
     from backend.ai.models import Assessment
-    topics_query = db.query(Topic).filter(Topic.subject_id == exam.subject_id).all()
     
     topics_with_priority = []
     for t in topics_query:
@@ -160,17 +168,27 @@ def generate_timetable(db: Session, student_id: int, subject_id: int):
         else:
             priority = t.difficulty_weight + 1.0
             
+        # Give higher priority to subjects whose exams are closer!
+        exam_date = exam_dates.get(t.subject_id)
+        if exam_date:
+            days_until_exam = (exam_date - date.today()).days
+            # Boost priority for closer exam dates
+            if days_until_exam > 0:
+                priority += max(0.0, (30.0 - days_until_exam) / 2.0)
+            
         topics_with_priority.append({
             "topic_id": t.topic_id,
+            "subject_id": t.subject_id,
             "minutes_left": int(t.estimated_hours * 60),
-            "priority": priority
+            "priority": priority,
+            "exam_date": exam_date
         })
         
-    # Sort topics by priority descending (weakest first)
+    # Sort topics by priority descending (weakest first, closest exam first)
     topics_with_priority.sort(key=lambda x: x["priority"], reverse=True)
     topic_queue = topics_with_priority
 
-    # Clean existing study plans for this subject to regenerate
+    # Clean existing study plans for these subjects to regenerate
     topic_ids = [t.topic_id for t in topics_query]
     db.query(StudyPlan).filter(
         StudyPlan.student_id == student_id,
@@ -178,9 +196,6 @@ def generate_timetable(db: Session, student_id: int, subject_id: int):
     ).delete(synchronize_session=False)
 
     current_date = date.today()
-    if current_date > exam.exam_date:
-        raise HTTPException(status_code=400, detail="Exam date is in the past")
-
     created_plans = []
     
     # Start time for the day
@@ -191,7 +206,13 @@ def generate_timetable(db: Session, student_id: int, subject_id: int):
         
     current_sched_dt = datetime.combine(current_date, start_time_dt.time())
 
-    while topic_queue and current_sched_dt.date() < exam.exam_date:
+    while topic_queue:
+        # We need to filter topic_queue to only those whose exam_date is in the future relative to the pointer date
+        valid_topics = [t for t in topic_queue if t["exam_date"] and current_sched_dt.date() < t["exam_date"]]
+        if not valid_topics:
+            # No topics left that can be scheduled before their respective exam dates!
+            break
+            
         # Calculate already scheduled minutes for the student on this specific date
         existing_minutes = db.query(func.sum(StudyPlan.planned_minutes)).filter(
             StudyPlan.student_id == student_id,
@@ -205,7 +226,8 @@ def generate_timetable(db: Session, student_id: int, subject_id: int):
             current_sched_dt = datetime.combine(current_sched_dt.date() + timedelta(days=1), start_time_dt.time())
             continue
 
-        current_topic = topic_queue[0]
+        # Get the highest priority topic that is valid
+        current_topic = valid_topics[0]
         allocate_time = min(minutes_remaining_today, current_topic["minutes_left"])
 
         if allocate_time > 0:
@@ -234,9 +256,13 @@ def generate_timetable(db: Session, student_id: int, subject_id: int):
             # Advance time pointer by slot duration + break duration
             current_sched_dt = slot_end + timedelta(minutes=prefs.break_duration)
             
-            current_topic["minutes_left"] -= allocate_time
-            if current_topic["minutes_left"] <= 0:
-                topic_queue.pop(0)
+            # Subtract allocated time from the topic in the main queue
+            for q_topic in topic_queue:
+                if q_topic["topic_id"] == current_topic["topic_id"]:
+                    q_topic["minutes_left"] -= allocate_time
+                    if q_topic["minutes_left"] <= 0:
+                        topic_queue.remove(q_topic)
+                    break
         else:
             # Move pointer to tomorrow morning
             current_sched_dt = datetime.combine(current_sched_dt.date() + timedelta(days=1), start_time_dt.time())

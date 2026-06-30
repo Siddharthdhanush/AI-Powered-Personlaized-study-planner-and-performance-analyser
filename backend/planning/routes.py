@@ -22,6 +22,20 @@ def trigger_generate_timetable(
     result = utils.generate_timetable(db, student_id=current_user.student_id, subject_id=subject_id)
     return result
 
+@router.post("/generate", status_code=status.HTTP_200_OK)
+def trigger_generate_timetable_multiple(
+    payload: schemas.GenerateTimetablePayload,
+    current_user: Student = Depends(auth.get_current_user),
+    db: Session = Depends(database.get_db)
+):
+    """
+    Generates study plans for multiple subjects.
+    """
+    if not payload.subject_ids:
+        raise HTTPException(status_code=400, detail="Please select at least one subject")
+    result = utils.generate_timetable_multiple(db, student_id=current_user.student_id, subject_ids=payload.subject_ids)
+    return result
+
 @router.get("/timetable", response_model=List[schemas.StudyPlanOut])
 def get_timetable(
     current_user: Student = Depends(auth.get_current_user),

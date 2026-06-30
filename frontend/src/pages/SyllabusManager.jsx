@@ -18,6 +18,7 @@ function SyllabusManager() {
   const [editingSubjectId, setEditingSubjectId] = useState(null);
   const [editSubjectName, setEditSubjectName] = useState('');
   const [extractedTopics, setExtractedTopics] = useState(null);
+  const [selectedSubjects, setSelectedSubjects] = useState([]);
 
   const navigate = useNavigate();
 
@@ -190,6 +191,19 @@ function SyllabusManager() {
     }
   };
 
+  const handleGenerateMultipleTimetable = async () => {
+    if (selectedSubjects.length === 0) {
+      alert('Please select at least one subject to generate a timetable.');
+      return;
+    }
+    try {
+      await api.post('/planning/generate', { subject_ids: selectedSubjects });
+      alert('Timetable generated successfully for selected subjects! Head to your Dashboard to see it.');
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Failed to generate timetable. Ensure selected subjects have topics and exam dates set.');
+    }
+  };
+
   return (
     <div>
       <h1 style={{marginBottom: '32px'}}>Syllabus Manager</h1>
@@ -246,26 +260,77 @@ function SyllabusManager() {
             </form>
           </div>
 
+          {selectedSubjects.length > 0 && (
+            <div style={{
+              background: '#eff6ff', 
+              padding: '12px', 
+              borderRadius: '8px', 
+              border: '1px solid #bfdbfe', 
+              marginBottom: '16px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <span style={{fontWeight: 600, fontSize: '0.9rem', color: 'var(--accent-color)'}}>
+                {selectedSubjects.length} subject{selectedSubjects.length > 1 ? 's' : ''} selected
+              </span>
+              <button 
+                onClick={handleGenerateMultipleTimetable} 
+                className="btn" 
+                style={{
+                  fontSize: '0.85rem', 
+                  padding: '6px 12px', 
+                  background: 'var(--success-color)',
+                  boxShadow: 'none'
+                }}
+              >
+                ✨ Generate Timetable ({selectedSubjects.length})
+              </button>
+            </div>
+          )}
+
           {subjects.length === 0 ? (
             <p style={{textAlign: 'center', padding: '20px 0'}}>No subjects added yet.</p>
           ) : (
             <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
-              {subjects.map(sub => (
-                <div 
-                  key={sub.subject_id} 
-                  className="glass-panel"
-                  style={{
-                    padding: '16px', 
-                    cursor: 'pointer',
-                    borderWidth: '2px',
-                    borderColor: activeSubject === sub.subject_id ? 'var(--accent-color)' : 'var(--border-color)',
-                    boxShadow: activeSubject === sub.subject_id ? '0 4px 6px -1px rgba(59, 130, 246, 0.2)' : 'none',
-                    transform: 'none'
-                  }}
-                  onClick={() => setActiveSubject(sub.subject_id)}
-                >
-                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start'}}>
-                    <div style={{width: '100%'}}>
+              {subjects.map(sub => {
+                const isSelected = selectedSubjects.includes(sub.subject_id);
+                return (
+                  <div 
+                    key={sub.subject_id} 
+                    className="glass-panel"
+                    style={{
+                      padding: '16px', 
+                      cursor: 'pointer',
+                      borderWidth: '2px',
+                      borderColor: activeSubject === sub.subject_id ? 'var(--accent-color)' : 'var(--border-color)',
+                      boxShadow: activeSubject === sub.subject_id ? '0 4px 6px -1px rgba(59, 130, 246, 0.2)' : 'none',
+                      transform: 'none',
+                      display: 'flex',
+                      gap: '12px',
+                      alignItems: 'center'
+                    }}
+                    onClick={() => setActiveSubject(sub.subject_id)}
+                  >
+                    <input 
+                      type="checkbox"
+                      checked={isSelected}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={() => {
+                        setSelectedSubjects(prev => 
+                          prev.includes(sub.subject_id) 
+                            ? prev.filter(id => id !== sub.subject_id)
+                            : [...prev, sub.subject_id]
+                        );
+                      }}
+                      style={{
+                        accentColor: 'var(--accent-color)',
+                        width: '18px',
+                        height: '18px',
+                        cursor: 'pointer'
+                      }}
+                    />
+                    <div style={{flex: 1}}>
                       <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px'}} onClick={(e) => e.stopPropagation()}>
                         {editingSubjectId === sub.subject_id ? (
                           <div style={{display: 'flex', gap: '4px', width: '100%', alignItems: 'center'}}>
@@ -297,14 +362,14 @@ function SyllabusManager() {
                           📎 File Uploaded
                         </span>
                       )}
+                      <div style={{display: 'flex', gap: '6px', justifyContent: 'flex-end', marginTop: '8px'}}>
+                        <span className="badge">{sub.topics?.length || 0} Topics</span>
+                        {sub.exams?.length > 0 && <span className="badge" style={{color: '#d97706', background: '#fef3c7', borderColor: '#fde68a'}}>📅 Exam Set</span>}
+                      </div>
                     </div>
                   </div>
-                  <div style={{display: 'flex', gap: '6px', justifyContent: 'flex-end', marginTop: '8px'}}>
-                    <span className="badge">{sub.topics?.length || 0} Topics</span>
-                    {sub.exams?.length > 0 && <span className="badge" style={{color: '#d97706', background: '#fef3c7', borderColor: '#fde68a'}}>📅 Exam Set</span>}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

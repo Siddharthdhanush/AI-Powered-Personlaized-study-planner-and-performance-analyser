@@ -57,6 +57,9 @@ def get_llama3_response(prompt_text: str, json_format: bool = False):
     kwargs = {
         "model": selected_model,
         "messages": messages,
+        "options": {
+            "temperature": 0.0
+        }
     }
     
     if json_format:

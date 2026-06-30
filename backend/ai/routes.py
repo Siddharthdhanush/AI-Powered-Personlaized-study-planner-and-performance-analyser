@@ -76,7 +76,11 @@ def extract_syllabus(
 
     # 1. Parse Document
     try:
-        raw_text = document_parser.parse_document(subject_record.file_path)
+        import os
+        with open(subject_record.file_path, "rb") as f:
+            file_bytes = f.read()
+        filename = os.path.basename(subject_record.file_path)
+        raw_text = document_parser.parse_document(file_bytes, filename)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to parse document: {str(e)}")
 
