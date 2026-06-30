@@ -1,23 +1,23 @@
 from . import ollama_client, prompts
 
-def generate_quiz_for_topic(topic_name: str, num_questions: int = 9) -> list:
+def generate_quiz_for_topic(topic_name: str, num_questions: int = 10) -> list:
     """
     Sends a request to Llama 3 to generate a quiz for the topic.
-    Generates exactly 9 questions with a mix of MCQ, FIB, and Descriptive types.
+    Generates exactly 10 questions: 4 MCQ, 3 MULTI_MCQ, and 3 DESCRIPTIVE.
     """
     prompt = f"""
     You are an experienced university professor.
-    Generate a quiz with exactly 9 questions for the topic: "{topic_name}".
+    Generate a quiz with exactly 10 questions for the topic: "{topic_name}".
     
     The quiz MUST contain a mix of different question types:
-    - 3 Multiple Choice Questions (MCQs): question_type = "MCQ". Must have options (option_a, option_b, option_c, option_d) and a correct_option (A, B, C, or D).
-    - 3 Fill in the Blanks (FIB): question_type = "FIB". The question_text must contain a blank (e.g. "___"). Set option_a, option_b, option_c, option_d to null. correct_option must contain the single correct word/phrase answer.
+    - 4 Multiple Choice Questions (MCQs): question_type = "MCQ". Must have options (option_a, option_b, option_c, option_d) and a single letter correct_option (A, B, C, or D).
+    - 3 Multi-Correct Questions: question_type = "MULTI_MCQ". Must have options (option_a, option_b, option_c, option_d). The correct_option MUST contain multiple letters separated by commas (e.g. "A,B" or "A,C,D") indicating all the correct answers.
     - 3 Descriptive/Short Answer Questions: question_type = "DESCRIPTIVE". Set option_a, option_b, option_c, option_d to null. correct_option must contain the key points or a model answer.
     
     Difficulty distribution:
-    - 3 Easy (1 MCQ, 1 FIB, 1 DESCRIPTIVE)
-    - 3 Medium (1 MCQ, 1 FIB, 1 DESCRIPTIVE)
-    - 3 Hard (1 MCQ, 1 FIB, 1 DESCRIPTIVE)
+    - 4 Easy (2 MCQ, 1 MULTI_MCQ, 1 DESCRIPTIVE)
+    - 3 Medium (1 MCQ, 1 MULTI_MCQ, 1 DESCRIPTIVE)
+    - 3 Hard (1 MCQ, 1 MULTI_MCQ, 1 DESCRIPTIVE)
     
     Return the response STRICTLY as a JSON array of objects in this exact format (no markdown blocks):
     [
@@ -27,10 +27,10 @@ def generate_quiz_for_topic(topic_name: str, num_questions: int = 9) -> list:
         "option_b": "...",
         "option_c": "...",
         "option_d": "...",
-        "correct_option": "...",
+        "correct_option": "...", // e.g. "A" for MCQ, "A,C" for MULTI_MCQ, model answer for DESCRIPTIVE
         "explanation": "...",
         "difficulty": "Easy",
-        "question_type": "MCQ"
+        "question_type": "MCQ" // MCQ, MULTI_MCQ, DESCRIPTIVE
       }}
     ]
     """

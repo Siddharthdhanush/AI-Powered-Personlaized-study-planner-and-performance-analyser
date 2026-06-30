@@ -113,15 +113,37 @@ def generate_timetable(db: Session, student_id: int, subject_id: int):
     if not exam:
         raise HTTPException(status_code=400, detail="Exam date not set for this subject")
     
-    # Initialize topics tracking
-    topic_queue = []
+    # Initialize topics tracking and prioritize weak topics (with lower quiz scores) first
+    from backend.ai.models import Assessment
     topics_query = db.query(Topic).filter(Topic.subject_id == exam.subject_id).all()
     
+    topics_with_priority = []
     for t in topics_query:
-        topic_queue.append({
+        # Get latest assessment score for this topic
+        latest_assessment = db.query(Assessment).filter(
+            Assessment.student_id == student_id,
+            Assessment.topic_id == t.topic_id
+        ).order_by(Assessment.attempt_date.desc()).first()
+        
+        score = latest_assessment.score if latest_assessment else None
+        
+        # Priority calculation:
+        # If score is low (<60%), boost priority significantly
+        # If they haven't taken a quiz yet, give it baseline priority + 1.0 (to study before mastered ones)
+        if score is not None:
+            priority = t.difficulty_weight + (100.0 - score) / 10.0
+        else:
+            priority = t.difficulty_weight + 1.0
+            
+        topics_with_priority.append({
             "topic_id": t.topic_id,
-            "minutes_left": int(t.estimated_hours * 60)
+            "minutes_left": int(t.estimated_hours * 60),
+            "priority": priority
         })
+        
+    # Sort topics by priority descending (weakest first)
+    topics_with_priority.sort(key=lambda x: x["priority"], reverse=True)
+    topic_queue = topics_with_priority
 
     # Clean existing study plans for this subject to regenerate
     topic_ids = [t.topic_id for t in topics_query]
@@ -181,6 +203,7 @@ def generate_timetable(db: Session, student_id: int, subject_id: int):
                 is_completed=False
             )
             db.add(plan)
+            db.flush()
             created_plans.append(plan)
             
             # Advance time pointer by slot duration + break duration

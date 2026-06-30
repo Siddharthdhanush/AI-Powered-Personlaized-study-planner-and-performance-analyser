@@ -4,6 +4,7 @@ import api from '../api';
 
 function Dashboard() {
   const [profile, setProfile] = useState(null);
+  const [preferences, setPreferences] = useState(null);
   const [timetable, setTimetable] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [mlAnalytics, setMlAnalytics] = useState(null);
@@ -16,14 +17,16 @@ function Dashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [profRes, timeRes, subRes] = await Promise.all([
+        const [profRes, timeRes, subRes, prefRes] = await Promise.all([
           api.get('/user/profile'),
           api.get('/planning/timetable'),
-          api.get('/syllabus/subjects')
+          api.get('/syllabus/subjects'),
+          api.get('/user/preferences')
         ]);
         setProfile(profRes.data);
         setTimetable(timeRes.data);
         setSubjects(subRes.data);
+        setPreferences(prefRes.data);
       } catch (err) {
         navigate('/login');
       }
@@ -350,7 +353,7 @@ function Dashboard() {
                   getTopicName={getTopicName} 
                   handleCompleteSession={handleCompleteSession} 
                   handleEditSession={handleEditSession} 
-                  profile={profile}
+                  preferences={preferences}
                 />
               )}
             </div>
@@ -390,6 +393,16 @@ function Dashboard() {
                   <span style={{color: 'var(--text-secondary)', fontSize: '0.95rem'}}>Historical MCQ Accuracy:</span>
                   <span style={{fontWeight: 700}}>{mlAnalytics.mcq_accuracy}%</span>
                 </div>
+                {mlAnalytics.weak_topics && mlAnalytics.weak_topics.length > 0 && (
+                  <div style={{marginTop: '8px', borderTop: '1px dashed #bfdbfe', paddingTop: '8px'}}>
+                    <span style={{color: 'var(--danger-color)', fontSize: '0.9rem', fontWeight: 700, display: 'block', marginBottom: '4px'}}>⚠️ Weak Topics (< 60% score):</span>
+                    <ul style={{margin: 0, paddingLeft: '20px', fontSize: '0.85rem', color: 'var(--text-primary)'}}>
+                      {mlAnalytics.weak_topics.map((t, idx) => (
+                        <li key={idx}>{t}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 <div style={{fontSize: '0.75rem', color: '#94a3b8', marginTop: '8px', textAlign: 'right'}}>
                   Based on behavior tracking models.
                 </div>
@@ -417,12 +430,12 @@ function Dashboard() {
 }
 
 // Weekly Grid Schedule View Component
-function WeeklyGridView({ timetable, getTopicName, handleCompleteSession, handleEditSession, profile }) {
+function WeeklyGridView({ timetable, getTopicName, handleCompleteSession, handleEditSession, preferences }) {
   const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   
   // Dynamic wake/sleep hours based on preferences
-  const wakeHour = parseInt(profile?.preferences?.wake_time?.split(':')[0]) || 7;
-  const sleepHour = parseInt(profile?.preferences?.sleep_time?.split(':')[0]) || 22;
+  const wakeHour = parseInt(preferences?.wake_time?.split(':')[0]) || 7;
+  const sleepHour = parseInt(preferences?.sleep_time?.split(':')[0]) || 22;
   
   const hourlySlots = [];
   for (let h = wakeHour; h <= sleepHour; h++) {

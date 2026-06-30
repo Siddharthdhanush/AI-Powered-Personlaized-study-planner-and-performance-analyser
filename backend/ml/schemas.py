@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 class PredictionResponse(BaseModel):
@@ -9,6 +9,7 @@ class PredictionResponse(BaseModel):
     avg_response_time: float
     skip_count: int
     timestamp: datetime
+    weak_topics: Optional[List[str]] = []
     
     class Config:
         from_attributes = True

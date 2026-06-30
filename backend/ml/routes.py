@@ -22,11 +22,12 @@ def get_predictive_analytics(
     Uses actual quiz submissions to predict mastery and readiness.
     Fals back to baseline simulation if no quiz data exists.
     """
-    # Fetch all assessment answers for the student
+    # 1. Fetch all assessment answers for the student
     all_answers = db.query(AssessmentAnswer).join(Assessment).filter(
         Assessment.student_id == current_user.student_id
     ).all()
     
+    pred_obj = None
     if all_answers:
         # Calculate real metrics
         total_q = len(all_answers)
@@ -53,34 +54,58 @@ def get_predictive_analytics(
         db.add(new_pred)
         db.commit()
         db.refresh(new_pred)
-        return new_pred
+        pred_obj = new_pred
+    else:
+        # Fallback simulation if they haven't taken any quizzes yet
+        latest_pred = db.query(models.MLPrediction).filter(
+            models.MLPrediction.student_id == current_user.student_id
+        ).order_by(models.MLPrediction.timestamp.desc()).first()
+        
+        if not latest_pred:
+            mcq_acc = round(random.uniform(40.0, 75.0), 2)
+            avg_time = round(random.uniform(30.0, 90.0), 2)
+            skips = random.randint(0, 4)
+            
+            preds = pipeline.predict_performance(mcq_acc, avg_time, skips)
+            
+            new_pred = models.MLPrediction(
+                student_id=current_user.student_id,
+                mcq_accuracy=mcq_acc,
+                avg_response_time=avg_time,
+                skip_count=skips,
+                topic_mastery=preds["topic_mastery"],
+                exam_readiness_prob=preds["exam_readiness_prob"]
+            )
+            db.add(new_pred)
+            db.commit()
+            db.refresh(new_pred)
+            pred_obj = new_pred
+        else:
+            pred_obj = latest_pred
 
-    # Fallback simulation if they haven't taken any quizzes yet
-    latest_pred = db.query(models.MLPrediction).filter(
-        models.MLPrediction.student_id == current_user.student_id
-    ).order_by(models.MLPrediction.timestamp.desc()).first()
-    
-    if not latest_pred:
-        mcq_acc = round(random.uniform(40.0, 75.0), 2)
-        avg_time = round(random.uniform(30.0, 90.0), 2)
-        skips = random.randint(0, 4)
-        
-        preds = pipeline.predict_performance(mcq_acc, avg_time, skips)
-        
-        new_pred = models.MLPrediction(
-            student_id=current_user.student_id,
-            mcq_accuracy=mcq_acc,
-            avg_response_time=avg_time,
-            skip_count=skips,
-            topic_mastery=preds["topic_mastery"],
-            exam_readiness_prob=preds["exam_readiness_prob"]
-        )
-        db.add(new_pred)
-        db.commit()
-        db.refresh(new_pred)
-        return new_pred
-        
-    return latest_pred
+    # Calculate weak topics (latest score < 60%)
+    latest_scores = {}
+    for a in db.query(Assessment).filter(Assessment.student_id == current_user.student_id).all():
+        if a.topic_id not in latest_scores or a.attempt_date > latest_scores[a.topic_id]["date"]:
+            latest_scores[a.topic_id] = {"score": a.score, "date": a.attempt_date}
+            
+    weak_topic_names = []
+    from backend.syllabus.models import Topic as SyllabusTopic
+    for topic_id, data in latest_scores.items():
+        if data["score"] < 60.0:
+            topic = db.query(SyllabusTopic).filter(SyllabusTopic.topic_id == topic_id).first()
+            if topic:
+                weak_topic_names.append(topic.topic_name)
+
+    return {
+        "topic_mastery": pred_obj.topic_mastery,
+        "exam_readiness_prob": pred_obj.exam_readiness_prob,
+        "mcq_accuracy": pred_obj.mcq_accuracy,
+        "avg_response_time": pred_obj.avg_response_time,
+        "skip_count": pred_obj.skip_count,
+        "timestamp": pred_obj.timestamp,
+        "weak_topics": weak_topic_names
+    }
 
 @router.post("/trigger-update")
 def force_recalculate_predictions(

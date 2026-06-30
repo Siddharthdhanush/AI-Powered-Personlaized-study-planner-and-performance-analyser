@@ -43,6 +43,18 @@ function QuizSession() {
     setAnswers(prev => ({ ...prev, [qId]: option }));
   };
 
+  const handleSelectMultiAnswer = (qId, option) => {
+    const currentVal = answers[qId] || '';
+    let selected = currentVal ? currentVal.split(',') : [];
+    if (selected.includes(option)) {
+      selected = selected.filter(o => o !== option);
+    } else {
+      selected.push(option);
+    }
+    selected.sort();
+    setAnswers(prev => ({ ...prev, [qId]: selected.join(',') }));
+  };
+
   const handleSubmitQuiz = async () => {
     setQuizStatus('SUBMITTING');
     const submissionData = {
@@ -87,7 +99,7 @@ function QuizSession() {
             </select>
           </div>
           <button className="btn" onClick={handleGenerateQuiz} disabled={!selectedTopic} style={{marginTop: '16px', width: '100%'}}>
-            ✨ Generate Quiz (9 Questions)
+            ✨ Generate Quiz (10 Questions)
           </button>
         </div>
       )}
@@ -140,20 +152,57 @@ function QuizSession() {
                   />
                 )}
                 
-                {!isFIB && !isDescriptive && (
+                {q.question_type === 'MULTI_MCQ' && (
                   <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
+                    <p style={{fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '0 0 8px 0'}}><em>Select all that apply (Multiple Correct Answers):</em></p>
                     {['A', 'B', 'C', 'D'].map(opt => {
                       const optionText = q[`option_${opt.toLowerCase()}`];
                       if (!optionText) return null;
+                      const isChecked = (answers[q.question_id] || '').split(',').includes(opt);
                       return (
                         <label 
                           key={opt}
                           style={{
                             padding: '12px 16px', 
                             border: '1px solid',
-                            borderColor: answers[q.question_id] === opt ? 'var(--accent-color)' : 'var(--border-color)',
+                            borderColor: isChecked ? 'var(--accent-color)' : 'var(--border-color)',
                             borderRadius: '8px',
-                            background: answers[q.question_id] === opt ? '#eff6ff' : '#f9fafb',
+                            background: isChecked ? '#eff6ff' : '#f9fafb',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '12px',
+                            transition: 'all 0.2s'
+                          }}
+                        >
+                          <input 
+                            type="checkbox" 
+                            checked={isChecked} 
+                            onChange={() => handleSelectMultiAnswer(q.question_id, opt)}
+                            style={{accentColor: 'var(--accent-color)', width: '18px', height: '18px'}}
+                          />
+                          <span><strong>{opt}.</strong> {optionText}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {q.question_type === 'MCQ' && (
+                  <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
+                    {['A', 'B', 'C', 'D'].map(opt => {
+                      const optionText = q[`option_${opt.toLowerCase()}`];
+                      if (!optionText) return null;
+                      const isSelected = answers[q.question_id] === opt;
+                      return (
+                        <label 
+                          key={opt}
+                          style={{
+                            padding: '12px 16px', 
+                            border: '1px solid',
+                            borderColor: isSelected ? 'var(--accent-color)' : 'var(--border-color)',
+                            borderRadius: '8px',
+                            background: isSelected ? '#eff6ff' : '#f9fafb',
                             cursor: 'pointer',
                             display: 'flex',
                             alignItems: 'center',
@@ -164,7 +213,7 @@ function QuizSession() {
                           <input 
                             type="radio" 
                             name={`q_${q.question_id}`} 
-                            checked={answers[q.question_id] === opt} 
+                            checked={isSelected} 
                             onChange={() => handleSelectAnswer(q.question_id, opt)}
                             style={{accentColor: 'var(--accent-color)', width: '18px', height: '18px'}}
                           />
@@ -216,6 +265,10 @@ function QuizSession() {
               isCorrect = userAns.trim().toLowerCase() === q.correct_option.trim().toLowerCase();
             } else if (isDescriptive) {
               isCorrect = userAns.trim().length >= 10;
+            } else if (q.question_type === 'MULTI_MCQ') {
+              const uList = userAns.split(',').map(s => s.trim()).filter(Boolean).sort().join(',');
+              const cList = q.correct_option.split(',').map(s => s.trim()).filter(Boolean).sort().join(',');
+              isCorrect = uList === cList;
             } else {
               isCorrect = userAns === q.correct_option;
             }

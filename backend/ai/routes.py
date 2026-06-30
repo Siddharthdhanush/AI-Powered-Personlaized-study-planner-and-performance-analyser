@@ -123,6 +123,11 @@ def submit_assessment(
             if q_type == 'MCQ':
                 if user_ans == correct_ans:
                     is_correct = True
+            elif q_type == 'MULTI_MCQ':
+                u_opts = sorted([o.strip() for o in user_ans.split(",") if o.strip()])
+                c_opts = sorted([o.strip() for o in correct_ans.split(",") if o.strip()])
+                if u_opts == c_opts:
+                    is_correct = True
             elif q_type == 'FIB':
                 if user_ans.lower() == correct_ans.lower():
                     is_correct = True
