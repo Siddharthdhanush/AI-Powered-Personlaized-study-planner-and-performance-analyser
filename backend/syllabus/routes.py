@@ -34,6 +34,19 @@ def get_subjects(
     subjects = db.query(models.Subject).filter(models.Subject.student_id == current_user.student_id).all()
     return subjects
 
+@router.delete("/subjects/{subject_id}")
+def delete_subject(
+    subject_id: int,
+    current_user: Student = Depends(auth.get_current_user),
+    db: Session = Depends(database.get_db)
+):
+    subject = db.query(models.Subject).filter(models.Subject.subject_id == subject_id, models.Subject.student_id == current_user.student_id).first()
+    if not subject:
+        raise HTTPException(status_code=404, detail="Subject not found")
+    db.delete(subject)
+    db.commit()
+    return {"message": "Subject deleted"}
+
 @router.post("/subjects/{subject_id}/upload", status_code=status.HTTP_200_OK)
 def upload_syllabus_file(
     subject_id: int,
@@ -107,6 +120,23 @@ def get_topics(
         raise HTTPException(status_code=404, detail="Subject not found")
         
     return subject_record.topics
+
+@router.delete("/subjects/{subject_id}/topics/{topic_id}")
+def delete_topic(
+    subject_id: int,
+    topic_id: int,
+    current_user: Student = Depends(auth.get_current_user),
+    db: Session = Depends(database.get_db)
+):
+    subject = db.query(models.Subject).filter(models.Subject.subject_id == subject_id, models.Subject.student_id == current_user.student_id).first()
+    if not subject:
+        raise HTTPException(status_code=404, detail="Subject not found")
+    topic = db.query(models.Topic).filter(models.Topic.topic_id == topic_id, models.Topic.subject_id == subject_id).first()
+    if not topic:
+        raise HTTPException(status_code=404, detail="Topic not found")
+    db.delete(topic)
+    db.commit()
+    return {"message": "Topic deleted"}
 
 # --- Exam Routes ---
 @router.post("/subjects/{subject_id}/exams", response_model=schemas.ExamOut, status_code=status.HTTP_201_CREATED)

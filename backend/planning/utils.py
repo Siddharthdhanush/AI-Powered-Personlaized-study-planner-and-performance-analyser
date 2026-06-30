@@ -25,7 +25,7 @@ def generate_timetable(db: Session, student_id: int, subject_id: int):
     for t in topics_query:
         topic_queue.append({
             "topic_id": t.topic_id,
-            "minutes_left": int(t.estimated_hours * t.difficulty_weight * 60)
+            "minutes_left": int(t.estimated_hours * 60)
         })
 
     # Clean existing study plans for this subject to regenerate

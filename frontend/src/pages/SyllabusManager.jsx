@@ -57,6 +57,18 @@ function SyllabusManager() {
     }
   };
 
+  const handleDeleteSubject = async (e, subjectId) => {
+    e.stopPropagation();
+    if (!window.confirm("Are you sure you want to delete this subject?")) return;
+    try {
+      await api.delete(`/syllabus/subjects/${subjectId}`);
+      if (activeSubject === subjectId) setActiveSubject(null);
+      fetchSubjects();
+    } catch (err) {
+      alert('Failed to delete subject');
+    }
+  };
+
   const handleAddTopic = async (e) => {
     e.preventDefault();
     if (!activeSubject) return;
@@ -71,6 +83,16 @@ function SyllabusManager() {
       fetchSubjects(); 
     } catch (err) {
       alert('Failed to add topic');
+    }
+  };
+
+  const handleDeleteTopic = async (topicId) => {
+    if (!window.confirm("Are you sure you want to delete this topic?")) return;
+    try {
+      await api.delete(`/syllabus/subjects/${activeSubject}/topics/${topicId}`);
+      fetchSubjects();
+    } catch (err) {
+      alert('Failed to delete topic');
     }
   };
 
@@ -177,20 +199,23 @@ function SyllabusManager() {
                   onClick={() => setActiveSubject(sub.subject_id)}
                 >
                   <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start'}}>
-                    <div>
-                      <span style={{fontWeight: '700', fontSize: '1.1rem', color: 'var(--text-primary)', display: 'block', marginBottom: '4px'}}>
-                        {sub.subject_name}
-                      </span>
+                    <div style={{width: '100%'}}>
+                      <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px'}}>
+                        <span style={{fontWeight: '700', fontSize: '1.1rem', color: 'var(--text-primary)'}}>
+                          {sub.subject_name}
+                        </span>
+                        <button onClick={(e) => handleDeleteSubject(e, sub.subject_id)} style={{background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1.1rem', padding: '0 4px'}} title="Delete Subject">🗑️</button>
+                      </div>
                       {sub.file_path && (
                         <span style={{fontSize: '0.8rem', color: 'var(--success-color)', display: 'flex', alignItems: 'center', gap: '4px'}}>
                           📎 File Uploaded
                         </span>
                       )}
                     </div>
-                    <div style={{display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end'}}>
-                      <span className="badge">{sub.topics?.length || 0} Topics</span>
-                      {sub.exams?.length > 0 && <span className="badge" style={{color: '#d97706', background: '#fef3c7', borderColor: '#fde68a'}}>📅 Exam Set</span>}
-                    </div>
+                  </div>
+                  <div style={{display: 'flex', gap: '6px', justifyContent: 'flex-end', marginTop: '8px'}}>
+                    <span className="badge">{sub.topics?.length || 0} Topics</span>
+                    {sub.exams?.length > 0 && <span className="badge" style={{color: '#d97706', background: '#fef3c7', borderColor: '#fde68a'}}>📅 Exam Set</span>}
                   </div>
                 </div>
               ))}
@@ -290,16 +315,19 @@ function SyllabusManager() {
                     {/* Topics List */}
                     <ul style={{listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '12px'}}>
                       {activeSubObj?.topics?.map(topic => (
-                        <li key={topic.topic_id} style={{padding: '16px', background: '#fff', borderRadius: '12px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '8px'}}>
-                          <span style={{fontWeight: 600, fontSize: '1.05rem'}}>{topic.topic_name}</span>
-                          <div style={{display: 'flex', gap: '16px', fontSize: '0.85rem', color: 'var(--text-secondary)'}}>
-                            <span style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
-                              <span style={{color: '#f59e0b'}}>★</span> Difficulty: {topic.difficulty_weight}
-                            </span>
-                            <span style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
-                              <span style={{color: '#3b82f6'}}>⏱️</span> Est. Time: {topic.estimated_hours} hrs
-                            </span>
+                        <li key={topic.topic_id} style={{padding: '16px', background: '#fff', borderRadius: '12px', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                          <div>
+                            <span style={{fontWeight: 600, fontSize: '1.05rem', display: 'block', marginBottom: '4px'}}>{topic.topic_name}</span>
+                            <div style={{display: 'flex', gap: '16px', fontSize: '0.85rem', color: 'var(--text-secondary)'}}>
+                              <span style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
+                                <span style={{color: '#f59e0b'}}>★</span> Difficulty: {topic.difficulty_weight}
+                              </span>
+                              <span style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
+                                <span style={{color: '#3b82f6'}}>⏱️</span> Est. Time: {topic.estimated_hours} hrs
+                              </span>
+                            </div>
                           </div>
+                          <button onClick={() => handleDeleteTopic(topic.topic_id)} style={{background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1rem'}} title="Delete Topic">🗑️</button>
                         </li>
                       ))}
                     </ul>

@@ -52,7 +52,8 @@ function Dashboard() {
     if (!window.confirm("Are you sure you want to clear your entire timetable?")) return;
     try {
       await api.delete('/planning/sessions');
-      fetchTimetable();
+      const timeRes = await api.get('/planning/timetable');
+      setTimetable(timeRes.data);
     } catch (err) {
       alert('Failed to clear timetable');
     }
@@ -61,7 +62,8 @@ function Dashboard() {
   const handleDeleteSession = async (planId) => {
     try {
       await api.delete(`/planning/sessions/${planId}`);
-      fetchTimetable();
+      const timeRes = await api.get('/planning/timetable');
+      setTimetable(timeRes.data);
     } catch (err) {
       alert('Failed to delete session');
     }
