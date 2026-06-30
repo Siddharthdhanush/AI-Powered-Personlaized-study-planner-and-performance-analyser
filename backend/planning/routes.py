@@ -52,6 +52,30 @@ def complete_study_session(
 
     plan.is_completed = True
     db.commit()
+
+@router.put("/sessions/{plan_id}", response_model=schemas.StudyPlanOut)
+def update_study_session(
+    plan_id: int,
+    session_data: schemas.StudyPlanUpdate,
+    current_user: Student = Depends(auth.get_current_user),
+    db: Session = Depends(database.get_db)
+):
+    plan = db.query(models.StudyPlan).filter(
+        models.StudyPlan.plan_id == plan_id,
+        models.StudyPlan.student_id == current_user.student_id
+    ).first()
+
+    if not plan:
+        raise HTTPException(status_code=404, detail="Study plan session not found")
+
+    plan.planned_date = session_data.planned_date
+    plan.planned_minutes = session_data.planned_minutes
+    plan.start_time = session_data.start_time
+    plan.end_time = session_data.end_time
+    db.commit()
+    db.refresh(plan)
+    return plan
+
 @router.delete("/sessions/{plan_id}")
 def delete_session(plan_id: int, current_user: Student = Depends(auth.get_current_user), db: Session = Depends(database.get_db)):
     plan = db.query(models.StudyPlan).filter(models.StudyPlan.plan_id == plan_id, models.StudyPlan.student_id == current_user.student_id).first()

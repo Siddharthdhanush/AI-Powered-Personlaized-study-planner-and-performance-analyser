@@ -47,6 +47,26 @@ def delete_subject(
     db.commit()
     return {"message": "Subject deleted"}
 
+@router.put("/subjects/{subject_id}", response_model=schemas.SubjectOut)
+def update_subject(
+    subject_id: int,
+    subject: schemas.SubjectCreate,
+    current_user: Student = Depends(auth.get_current_user),
+    db: Session = Depends(database.get_db)
+):
+    subject_record = db.query(models.Subject).filter(
+        models.Subject.subject_id == subject_id,
+        models.Subject.student_id == current_user.student_id
+    ).first()
+    
+    if not subject_record:
+        raise HTTPException(status_code=404, detail="Subject not found")
+
+    subject_record.subject_name = subject.subject_name
+    db.commit()
+    db.refresh(subject_record)
+    return subject_record
+
 @router.post("/subjects/{subject_id}/upload", status_code=status.HTTP_200_OK)
 def upload_syllabus_file(
     subject_id: int,
@@ -104,6 +124,37 @@ def create_topic(
     db.refresh(new_topic)
     return new_topic
 
+@router.post("/subjects/{subject_id}/topics/bulk", response_model=List[schemas.TopicOut], status_code=status.HTTP_201_CREATED)
+def create_topics_bulk(
+    subject_id: int,
+    topics: List[schemas.TopicCreate],
+    current_user: Student = Depends(auth.get_current_user),
+    db: Session = Depends(database.get_db)
+):
+    subject_record = db.query(models.Subject).filter(
+        models.Subject.subject_id == subject_id,
+        models.Subject.student_id == current_user.student_id
+    ).first()
+    
+    if not subject_record:
+        raise HTTPException(status_code=404, detail="Subject not found")
+
+    added_topics = []
+    for topic in topics:
+        new_topic = models.Topic(
+            subject_id=subject_id,
+            topic_name=topic.topic_name,
+            difficulty_weight=topic.difficulty_weight,
+            estimated_hours=topic.estimated_hours
+        )
+        db.add(new_topic)
+        added_topics.append(new_topic)
+        
+    db.commit()
+    for t in added_topics:
+        db.refresh(t)
+    return added_topics
+
 @router.get("/subjects/{subject_id}/topics", response_model=List[schemas.TopicOut])
 def get_topics(
     subject_id: int,
@@ -137,6 +188,29 @@ def delete_topic(
     db.delete(topic)
     db.commit()
     return {"message": "Topic deleted"}
+
+@router.put("/subjects/{subject_id}/topics/{topic_id}", response_model=schemas.TopicOut)
+def update_topic(
+    subject_id: int,
+    topic_id: int,
+    topic: schemas.TopicCreate,
+    current_user: Student = Depends(auth.get_current_user),
+    db: Session = Depends(database.get_db)
+):
+    subject = db.query(models.Subject).filter(models.Subject.subject_id == subject_id, models.Subject.student_id == current_user.student_id).first()
+    if not subject:
+        raise HTTPException(status_code=404, detail="Subject not found")
+    topic_record = db.query(models.Topic).filter(models.Topic.topic_id == topic_id, models.Topic.subject_id == subject_id).first()
+    if not topic_record:
+        raise HTTPException(status_code=404, detail="Topic not found")
+    topic_record.topic_name = topic.topic_name
+    topic_record.difficulty_weight = topic.difficulty_weight
+    topic_record.estimated_hours = topic.estimated_hours
+    topic_record.preferred_time = topic.preferred_time
+    db.commit()
+    db.refresh(topic_record)
+    return topic_record
+
 
 # --- Exam Routes ---
 @router.post("/subjects/{subject_id}/exams", response_model=schemas.ExamOut, status_code=status.HTTP_201_CREATED)

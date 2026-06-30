@@ -9,7 +9,11 @@ function ProfilePreferences() {
     wake_time: '', 
     sleep_time: '', 
     study_start_time: '', 
-    break_duration: 0 
+    break_duration: 0,
+    college_start_time: '09:00',
+    college_end_time: '16:00',
+    busy_start_time: '18:00',
+    busy_end_time: '19:00'
   });
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
@@ -43,7 +47,11 @@ function ProfilePreferences() {
         wake_time: preferences.wake_time,
         sleep_time: preferences.sleep_time,
         study_start_time: preferences.study_start_time,
-        break_duration: parseInt(preferences.break_duration)
+        break_duration: parseInt(preferences.break_duration),
+        college_start_time: preferences.college_start_time || '09:00',
+        college_end_time: preferences.college_end_time || '16:00',
+        busy_start_time: preferences.busy_start_time || '18:00',
+        busy_end_time: preferences.busy_end_time || '19:00'
       });
       alert('Preferences saved successfully!');
     } catch (err) {
@@ -115,14 +123,37 @@ function ProfilePreferences() {
               </div>
             </div>
 
-            <div className="form-group">
-              <label>Study Start Time</label>
-              <input type="time" name="study_start_time" className="input-field" value={preferences.study_start_time} onChange={handlePrefChange} required />
+            <div className="grid" style={{gridTemplateColumns: '1fr 1fr', gap: '12px'}}>
+              <div className="form-group">
+                <label>College Start Time</label>
+                <input type="time" name="college_start_time" className="input-field" value={preferences.college_start_time || '09:00'} onChange={handlePrefChange} required />
+              </div>
+              <div className="form-group">
+                <label>College End Time</label>
+                <input type="time" name="college_end_time" className="input-field" value={preferences.college_end_time || '16:00'} onChange={handlePrefChange} required />
+              </div>
             </div>
-            
-            <div className="form-group">
-              <label>Break Duration (Minutes per Session)</label>
-              <input type="number" name="break_duration" className="input-field" value={preferences.break_duration} onChange={handlePrefChange} required />
+
+            <div className="grid" style={{gridTemplateColumns: '1fr 1fr', gap: '12px'}}>
+              <div className="form-group">
+                <label>Study Start Time</label>
+                <input type="time" name="study_start_time" className="input-field" value={preferences.study_start_time} onChange={handlePrefChange} required />
+              </div>
+              <div className="form-group">
+                <label>Break Duration (Mins)</label>
+                <input type="number" name="break_duration" className="input-field" value={preferences.break_duration} onChange={handlePrefChange} required />
+              </div>
+            </div>
+
+            <div className="grid" style={{gridTemplateColumns: '1fr 1fr', gap: '12px'}}>
+              <div className="form-group">
+                <label>Busy Start Time</label>
+                <input type="time" name="busy_start_time" className="input-field" value={preferences.busy_start_time || '18:00'} onChange={handlePrefChange} required />
+              </div>
+              <div className="form-group">
+                <label>Busy End Time</label>
+                <input type="time" name="busy_end_time" className="input-field" value={preferences.busy_end_time || '19:00'} onChange={handlePrefChange} required />
+              </div>
             </div>
             
             <button type="submit" className="btn" style={{marginTop: '16px', width: '100%'}}>Save Preferences</button>

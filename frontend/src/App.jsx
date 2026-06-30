@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard';
 import ProfilePreferences from './pages/ProfilePreferences';
 import SyllabusManager from './pages/SyllabusManager';
 import QuizSession from './pages/QuizSession';
+import StudyTracker from './pages/StudyTracker';
 import api from './api';
 
 function Navigation() {
@@ -31,6 +32,7 @@ function Navigation() {
         <Link to="/" className="nav-link">Dashboard</Link>
         <Link to="/syllabus" className="nav-link">Syllabus</Link>
         <Link to="/quiz" className="nav-link">Quizzes</Link>
+        <Link to="/tracker" className="nav-link">Tracker</Link>
         <Link to="/profile" className="nav-link">Profile</Link>
         <button onClick={handleLogout} className="btn btn-secondary" style={{padding: '6px 12px', fontSize: '0.9rem'}}>Logout</button>
       </div>
@@ -49,6 +51,7 @@ function App() {
           <Route path="/profile" element={<ProfilePreferences />} />
           <Route path="/syllabus" element={<SyllabusManager />} />
           <Route path="/quiz" element={<QuizSession />} />
+          <Route path="/tracker" element={<StudyTracker />} />
         </Routes>
       </div>
     </BrowserRouter>

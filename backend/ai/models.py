@@ -19,6 +19,7 @@ class Question(Base):
     
     difficulty = Column(String, default="Medium") # Easy, Medium, Hard
     generated_by = Column(String, default="ollama")
+    question_type = Column(String, default="MCQ") # MCQ, FIB, DESCRIPTIVE
 
     # Relationships
     topic = relationship("Topic")

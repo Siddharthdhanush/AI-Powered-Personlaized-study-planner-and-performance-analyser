@@ -87,7 +87,7 @@ function QuizSession() {
             </select>
           </div>
           <button className="btn" onClick={handleGenerateQuiz} disabled={!selectedTopic} style={{marginTop: '16px', width: '100%'}}>
-            ✨ Generate 3 Questions
+            ✨ Generate Quiz (9 Questions)
           </button>
         </div>
       )}
@@ -104,46 +104,79 @@ function QuizSession() {
         <div className="glass-panel">
           <h2 style={{marginBottom: '24px'}}>Quiz Time!</h2>
           
-          {questions.map((q, idx) => (
-            <div key={q.question_id} style={{marginBottom: '32px', paddingBottom: '24px', borderBottom: '1px solid var(--border-color)'}}>
-              <h3 style={{fontSize: '1.1rem', marginBottom: '16px'}}>
-                <span style={{color: 'var(--accent-color)', marginRight: '8px'}}>Q{idx + 1}.</span> 
-                {q.question_text}
-              </h3>
-              <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
-                {['A', 'B', 'C', 'D'].map(opt => {
-                  const optionText = q[`option_${opt.toLowerCase()}`];
-                  if (!optionText) return null;
-                  return (
-                    <label 
-                      key={opt}
-                      style={{
-                        padding: '12px 16px', 
-                        border: '1px solid',
-                        borderColor: answers[q.question_id] === opt ? 'var(--accent-color)' : 'var(--border-color)',
-                        borderRadius: '8px',
-                        background: answers[q.question_id] === opt ? '#eff6ff' : '#f9fafb',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px',
-                        transition: 'all 0.2s'
-                      }}
-                    >
-                      <input 
-                        type="radio" 
-                        name={`q_${q.question_id}`} 
-                        checked={answers[q.question_id] === opt} 
-                        onChange={() => handleSelectAnswer(q.question_id, opt)}
-                        style={{accentColor: 'var(--accent-color)', width: '18px', height: '18px'}}
-                      />
-                      <span><strong>{opt}.</strong> {optionText}</span>
-                    </label>
-                  );
-                })}
+          {questions.map((q, idx) => {
+            const isFIB = q.question_type === 'FIB';
+            const isDescriptive = q.question_type === 'DESCRIPTIVE';
+            
+            return (
+              <div key={q.question_id} style={{marginBottom: '32px', paddingBottom: '24px', borderBottom: '1px solid var(--border-color)'}}>
+                <h3 style={{fontSize: '1.1rem', marginBottom: '16px'}}>
+                  <span style={{color: 'var(--accent-color)', marginRight: '8px'}}>Q{idx + 1}.</span> 
+                  {q.question_text}
+                  <span style={{fontSize: '0.8rem', color: 'var(--text-secondary)', marginLeft: '8px', padding: '2px 6px', background: '#e5e7eb', borderRadius: '4px'}}>
+                    {q.question_type || 'MCQ'}
+                  </span>
+                </h3>
+                
+                {isFIB && (
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="Type your answer here..."
+                    value={answers[q.question_id] || ''}
+                    onChange={e => handleSelectAnswer(q.question_id, e.target.value)}
+                    style={{width: '100%', maxWidth: '400px'}}
+                  />
+                )}
+                
+                {isDescriptive && (
+                  <textarea
+                    className="input-field"
+                    rows="3"
+                    placeholder="Write your answer here..."
+                    value={answers[q.question_id] || ''}
+                    onChange={e => handleSelectAnswer(q.question_id, e.target.value)}
+                    style={{width: '100%'}}
+                  />
+                )}
+                
+                {!isFIB && !isDescriptive && (
+                  <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
+                    {['A', 'B', 'C', 'D'].map(opt => {
+                      const optionText = q[`option_${opt.toLowerCase()}`];
+                      if (!optionText) return null;
+                      return (
+                        <label 
+                          key={opt}
+                          style={{
+                            padding: '12px 16px', 
+                            border: '1px solid',
+                            borderColor: answers[q.question_id] === opt ? 'var(--accent-color)' : 'var(--border-color)',
+                            borderRadius: '8px',
+                            background: answers[q.question_id] === opt ? '#eff6ff' : '#f9fafb',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '12px',
+                            transition: 'all 0.2s'
+                          }}
+                        >
+                          <input 
+                            type="radio" 
+                            name={`q_${q.question_id}`} 
+                            checked={answers[q.question_id] === opt} 
+                            onChange={() => handleSelectAnswer(q.question_id, opt)}
+                            style={{accentColor: 'var(--accent-color)', width: '18px', height: '18px'}}
+                          />
+                          <span><strong>{opt}.</strong> {optionText}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           <button className="btn" onClick={handleSubmitQuiz} style={{width: '100%', padding: '16px', fontSize: '1.1rem'}}>
             Submit Quiz
@@ -174,14 +207,25 @@ function QuizSession() {
 
           <h3 style={{borderBottom: '1px solid var(--border-color)', paddingBottom: '12px', marginBottom: '16px'}}>Explanations</h3>
           {questions.map((q, idx) => {
-            const userAns = answers[q.question_id];
-            const isCorrect = userAns === q.correct_option;
+            const userAns = answers[q.question_id] || '';
+            const isFIB = q.question_type === 'FIB';
+            const isDescriptive = q.question_type === 'DESCRIPTIVE';
+            
+            let isCorrect = false;
+            if (isFIB) {
+              isCorrect = userAns.trim().toLowerCase() === q.correct_option.trim().toLowerCase();
+            } else if (isDescriptive) {
+              isCorrect = userAns.trim().length >= 10;
+            } else {
+              isCorrect = userAns === q.correct_option;
+            }
+            
             return (
               <div key={q.question_id} style={{marginBottom: '24px', padding: '16px', borderRadius: '8px', background: isCorrect ? '#ecfdf5' : '#fef2f2', border: `1px solid ${isCorrect ? '#a7f3d0' : '#fecaca'}`}}>
                 <h4 style={{marginBottom: '8px'}}>Q{idx + 1}. {q.question_text}</h4>
                 <p style={{margin: '0 0 8px 0'}}>
                   <strong>Your Answer:</strong> {userAns || 'Skipped'} {isCorrect ? '✅' : '❌'} <br/>
-                  <strong>Correct Answer:</strong> {q.correct_option}
+                  <strong>Model Answer / Key:</strong> {q.correct_option}
                 </p>
                 <p style={{margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)'}}>
                   <strong>Explanation:</strong> {q.explanation}

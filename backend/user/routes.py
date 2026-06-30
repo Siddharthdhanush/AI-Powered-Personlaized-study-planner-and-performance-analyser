@@ -29,7 +29,13 @@ def register(student: schemas.StudentCreate, db: Session = Depends(database.get_
     db.refresh(new_student)
 
     # Create default preferences for the new user
-    default_prefs = models.Preferences(student_id=new_student.student_id)
+    default_prefs = models.Preferences(
+        student_id=new_student.student_id,
+        college_start_time="09:00",
+        college_end_time="16:00",
+        busy_start_time="18:00",
+        busy_end_time="19:00"
+    )
     db.add(default_prefs)
     db.commit()
     
@@ -109,6 +115,11 @@ def update_preferences(
     if prefs_data.wake_time is not None: prefs.wake_time = prefs_data.wake_time
     if prefs_data.sleep_time is not None: prefs.sleep_time = prefs_data.sleep_time
     if prefs_data.break_duration is not None: prefs.break_duration = prefs_data.break_duration
+    if prefs_data.study_start_time is not None: prefs.study_start_time = prefs_data.study_start_time
+    if prefs_data.college_start_time is not None: prefs.college_start_time = prefs_data.college_start_time
+    if prefs_data.college_end_time is not None: prefs.college_end_time = prefs_data.college_end_time
+    if prefs_data.busy_start_time is not None: prefs.busy_start_time = prefs_data.busy_start_time
+    if prefs_data.busy_end_time is not None: prefs.busy_end_time = prefs_data.busy_end_time
     
     db.commit()
     db.refresh(prefs)

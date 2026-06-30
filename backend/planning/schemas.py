@@ -19,3 +19,10 @@ class StudyPlanOut(StudyPlanBase):
 
     class Config:
         from_attributes = True
+
+class StudyPlanUpdate(BaseModel):
+    planned_date: date
+    planned_minutes: int
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+

@@ -13,6 +13,11 @@ function SyllabusManager() {
   const [newExam, setNewExam] = useState('');
   const [editingExamId, setEditingExamId] = useState(null);
   const [editExamDate, setEditExamDate] = useState('');
+  const [editingTopicId, setEditingTopicId] = useState(null);
+  const [editTopicData, setEditTopicData] = useState({ name: '', difficulty: '2', hours: '2', preferredTime: '' });
+  const [editingSubjectId, setEditingSubjectId] = useState(null);
+  const [editSubjectName, setEditSubjectName] = useState('');
+  const [extractedTopics, setExtractedTopics] = useState(null);
 
   const navigate = useNavigate();
 
@@ -96,6 +101,31 @@ function SyllabusManager() {
     }
   };
 
+  const handleEditTopic = (topic) => {
+    setEditingTopicId(topic.topic_id);
+    setEditTopicData({
+      name: topic.topic_name,
+      difficulty: topic.difficulty_weight.toString(),
+      hours: topic.estimated_hours.toString(),
+      preferredTime: topic.preferred_time || ''
+    });
+  };
+
+  const handleSaveTopic = async (topicId) => {
+    try {
+      await api.put(`/syllabus/subjects/${activeSubject}/topics/${topicId}`, {
+        topic_name: editTopicData.name,
+        difficulty_weight: parseFloat(editTopicData.difficulty),
+        estimated_hours: parseFloat(editTopicData.hours),
+        preferred_time: editTopicData.preferredTime || null
+      });
+      setEditingTopicId(null);
+      fetchSubjects();
+    } catch (err) {
+      alert('Failed to update topic');
+    }
+  };
+
   const handleAddExam = async (e) => {
     e.preventDefault();
     if (!activeSubject || !newExam) return;
@@ -125,12 +155,25 @@ function SyllabusManager() {
     }
   };
 
+  const handleSaveSubjectName = async (subjectId) => {
+    if (!editSubjectName.trim()) return;
+    try {
+      await api.put(`/syllabus/subjects/${subjectId}`, { subject_name: editSubjectName });
+      setEditingSubjectId(null);
+      fetchSubjects();
+    } catch (err) {
+      alert('Failed to update subject name');
+    }
+  };
+
   const handleExtractSyllabus = async () => {
     if (!activeSubject) return;
     try {
       alert('Asking Ollama AI to read your PDF and extract topics. This may take 30-60 seconds depending on your hardware...');
-      await api.post(`/ai/syllabus/extract/${activeSubject}`);
-      alert('Topics successfully extracted and added!');
+      const res = await api.post(`/ai/syllabus/extract/${activeSubject}`);
+      const topics = res.data.topics.map(t => ({ ...t, selected: true }));
+      setExtractedTopics(topics);
+      alert('AI extracted topics successfully! Please review the suggested list below.');
       fetchSubjects();
     } catch (err) {
       alert(err.response?.data?.detail || 'Failed to extract topics. Is Ollama running?');
@@ -168,12 +211,35 @@ function SyllabusManager() {
                 required
               />
               <div>
-                <label style={{fontSize: '0.9rem', fontWeight: 500, display: 'block', marginBottom: '6px'}}>Upload Syllabus (PDF/DOC)</label>
+                <label style={{fontSize: '0.9rem', fontWeight: 500, display: 'block', marginBottom: '6px'}}>Upload Syllabus (PDF/DOC/IMG)</label>
+                <label 
+                  htmlFor="file-upload" 
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '10px 16px',
+                    background: '#eff6ff',
+                    color: 'var(--accent-color)',
+                    border: '1px dashed var(--accent-color)',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontSize: '0.9rem',
+                    fontWeight: 600,
+                    transition: 'all 0.2s',
+                    textAlign: 'center',
+                    justifyContent: 'center',
+                    width: '100%'
+                  }}
+                >
+                  <span>📂 {selectedFile ? selectedFile.name : 'Choose Syllabus File'}</span>
+                </label>
                 <input 
+                  id="file-upload"
                   type="file" 
-                  accept=".pdf,.doc,.docx"
+                  accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
                   onChange={e => setSelectedFile(e.target.files[0])}
-                  style={{fontSize: '0.9rem'}}
+                  style={{display: 'none'}}
                 />
               </div>
               <button type="submit" className="btn" style={{marginTop: '8px'}}>Create Subject</button>
@@ -200,11 +266,31 @@ function SyllabusManager() {
                 >
                   <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start'}}>
                     <div style={{width: '100%'}}>
-                      <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px'}}>
-                        <span style={{fontWeight: '700', fontSize: '1.1rem', color: 'var(--text-primary)'}}>
-                          {sub.subject_name}
-                        </span>
-                        <button onClick={(e) => handleDeleteSubject(e, sub.subject_id)} style={{background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1.1rem', padding: '0 4px'}} title="Delete Subject">🗑️</button>
+                      <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px'}} onClick={(e) => e.stopPropagation()}>
+                        {editingSubjectId === sub.subject_id ? (
+                          <div style={{display: 'flex', gap: '4px', width: '100%', alignItems: 'center'}}>
+                            <input 
+                              type="text" 
+                              className="input-field" 
+                              value={editSubjectName} 
+                              onChange={e => setEditSubjectName(e.target.value)} 
+                              style={{padding: '4px 8px', fontSize: '0.9rem', flex: 1}}
+                              autoFocus
+                            />
+                            <button onClick={() => handleSaveSubjectName(sub.subject_id)} className="btn" style={{padding: '4px 8px', fontSize: '0.8rem', background: 'var(--success-color)'}}>✓</button>
+                            <button onClick={() => setEditingSubjectId(null)} className="btn btn-secondary" style={{padding: '4px 8px', fontSize: '0.8rem'}}>✗</button>
+                          </div>
+                        ) : (
+                          <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%'}}>
+                            <span style={{fontWeight: '700', fontSize: '1.1rem', color: 'var(--text-primary)'}}>
+                              {sub.subject_name}
+                            </span>
+                            <div style={{display: 'flex', gap: '8px'}}>
+                              <button onClick={(e) => { e.stopPropagation(); setEditingSubjectId(sub.subject_id); setEditSubjectName(sub.subject_name); }} style={{background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.95rem'}} title="Edit Subject Name">✏️</button>
+                              <button onClick={(e) => handleDeleteSubject(e, sub.subject_id)} style={{background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.95rem'}} title="Delete Subject">🗑️</button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                       {sub.file_path && (
                         <span style={{fontSize: '0.8rem', color: 'var(--success-color)', display: 'flex', alignItems: 'center', gap: '4px'}}>
@@ -287,6 +373,83 @@ function SyllabusManager() {
                       </div>
                     )}
 
+                    {extractedTopics && (
+                      <div className="glass-panel" style={{ background: '#f8fafc', border: '1px solid var(--accent-color)', padding: '16px', borderRadius: '12px', marginBottom: '24px' }}>
+                        <h3 style={{ fontSize: '1.1rem', marginBottom: '8px', color: 'var(--accent-color)' }}>📋 Suggested Topics ({extractedTopics.length})</h3>
+                        <p style={{ fontSize: '0.85rem', marginBottom: '16px' }}>Check the topics you want to include in your timetable. You can edit their names and properties after adding them.</p>
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '250px', overflowY: 'auto', marginBottom: '16px', paddingRight: '4px' }}>
+                          {extractedTopics.map((topic, idx) => (
+                            <label 
+                              key={idx}
+                              style={{
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: '10px', 
+                                padding: '8px 12px', 
+                                background: '#fff', 
+                                border: '1px solid var(--border-color)', 
+                                borderRadius: '8px',
+                                cursor: 'pointer',
+                                fontSize: '0.9rem'
+                              }}
+                            >
+                              <input 
+                                type="checkbox" 
+                                checked={topic.selected}
+                                onChange={() => {
+                                  const updated = [...extractedTopics];
+                                  updated[idx].selected = !updated[idx].selected;
+                                  setExtractedTopics(updated);
+                                }}
+                                style={{ accentColor: 'var(--accent-color)', width: '16px', height: '16px' }}
+                              />
+                              <div style={{ flex: 1 }}>
+                                <span style={{ fontWeight: 600 }}>{topic.topic_name}</span>
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                                  Difficulty: {topic.difficulty_weight} | Est. Hours: {topic.estimated_hours}h
+                                </div>
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+                        
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                          <button 
+                            onClick={async () => {
+                              const selected = extractedTopics.filter(t => t.selected);
+                              if (selected.length === 0) {
+                                alert("Please select at least one topic.");
+                                return;
+                              }
+                              try {
+                                await api.post(`/syllabus/subjects/${activeSubject}/topics/bulk`, selected.map(s => ({
+                                  topic_name: s.topic_name,
+                                  difficulty_weight: s.difficulty_weight,
+                                  estimated_hours: s.estimated_hours
+                                })));
+                                setExtractedTopics(null);
+                                alert(`Successfully added ${selected.length} topics!`);
+                                fetchSubjects();
+                              } catch (err) {
+                                alert("Failed to add topics.");
+                              }
+                            }}
+                            className="btn"
+                            style={{ background: 'var(--success-color)' }}
+                          >
+                            Add Selected Topics
+                          </button>
+                          <button 
+                            onClick={() => setExtractedTopics(null)} 
+                            className="btn btn-secondary"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Topics Section */}
                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px'}}>
                       <h3 style={{fontSize: '1.1rem', margin: 0}}>Topics List</h3>
@@ -314,22 +477,83 @@ function SyllabusManager() {
 
                     {/* Topics List */}
                     <ul style={{listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '12px'}}>
-                      {activeSubObj?.topics?.map(topic => (
-                        <li key={topic.topic_id} style={{padding: '16px', background: '#fff', borderRadius: '12px', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                          <div>
-                            <span style={{fontWeight: 600, fontSize: '1.05rem', display: 'block', marginBottom: '4px'}}>{topic.topic_name}</span>
-                            <div style={{display: 'flex', gap: '16px', fontSize: '0.85rem', color: 'var(--text-secondary)'}}>
-                              <span style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
-                                <span style={{color: '#f59e0b'}}>★</span> Difficulty: {topic.difficulty_weight}
-                              </span>
-                              <span style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
-                                <span style={{color: '#3b82f6'}}>⏱️</span> Est. Time: {topic.estimated_hours} hrs
-                              </span>
-                            </div>
-                          </div>
-                          <button onClick={() => handleDeleteTopic(topic.topic_id)} style={{background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1rem'}} title="Delete Topic">🗑️</button>
-                        </li>
-                      ))}
+                      {activeSubObj?.topics?.map(topic => {
+                        const isEditing = editingTopicId === topic.topic_id;
+                        return (
+                          <li key={topic.topic_id} style={{padding: '16px', background: '#fff', borderRadius: '12px', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                            {isEditing ? (
+                              <div style={{display: 'grid', gap: '8px', width: '100%'}}>
+                                <input
+                                  type="text"
+                                  className="input-field"
+                                  value={editTopicData.name}
+                                  onChange={e => setEditTopicData({ ...editTopicData, name: e.target.value })}
+                                  placeholder="Topic Name"
+                                  required
+                                />
+                                <div style={{display: 'flex', gap: '8px'}}>
+                                  <div style={{flex: 1}}>
+                                    <label style={{fontSize: '0.8rem', color: 'var(--text-secondary)'}}>Difficulty/Priority (1-5)</label>
+                                    <input
+                                      type="number"
+                                      min="1" max="5"
+                                      className="input-field"
+                                      value={editTopicData.difficulty}
+                                      onChange={e => setEditTopicData({ ...editTopicData, difficulty: e.target.value })}
+                                    />
+                                  </div>
+                                  <div style={{flex: 1}}>
+                                    <label style={{fontSize: '0.8rem', color: 'var(--text-secondary)'}}>Est. Hours</label>
+                                    <input
+                                      type="number"
+                                      step="0.5"
+                                      className="input-field"
+                                      value={editTopicData.hours}
+                                      onChange={e => setEditTopicData({ ...editTopicData, hours: e.target.value })}
+                                    />
+                                  </div>
+                                  <div style={{flex: 1}}>
+                                    <label style={{fontSize: '0.8rem', color: 'var(--text-secondary)'}}>Pref. Time</label>
+                                    <input
+                                      type="time"
+                                      className="input-field"
+                                      value={editTopicData.preferredTime}
+                                      onChange={e => setEditTopicData({ ...editTopicData, preferredTime: e.target.value })}
+                                    />
+                                  </div>
+                                </div>
+                                <div style={{display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '4px'}}>
+                                  <button onClick={() => handleSaveTopic(topic.topic_id)} className="btn" style={{padding: '6px 12px', fontSize: '0.85rem', background: 'var(--success-color)'}}>Save</button>
+                                  <button onClick={() => setEditingTopicId(null)} className="btn btn-secondary" style={{padding: '6px 12px', fontSize: '0.85rem'}}>Cancel</button>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                <div>
+                                  <span style={{fontWeight: 600, fontSize: '1.05rem', display: 'block', marginBottom: '4px'}}>{topic.topic_name}</span>
+                                  <div style={{display: 'flex', gap: '16px', fontSize: '0.85rem', color: 'var(--text-secondary)'}}>
+                                    <span style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
+                                      <span style={{color: '#f59e0b'}}>★</span> Difficulty/Priority: {topic.difficulty_weight}
+                                    </span>
+                                    <span style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
+                                      <span style={{color: '#3b82f6'}}>⏱️</span> Est. Time: {topic.estimated_hours} hrs
+                                    </span>
+                                    {topic.preferred_time && (
+                                      <span style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
+                                        <span>🕒</span> Pref: {topic.preferred_time}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div style={{display: 'flex', gap: '8px'}}>
+                                  <button onClick={() => handleEditTopic(topic)} className="btn btn-secondary" style={{padding: '6px 8px', fontSize: '0.85rem', border: 'none', background: 'transparent'}} title="Edit Topic">✏️</button>
+                                  <button onClick={() => handleDeleteTopic(topic.topic_id)} style={{background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1rem'}} title="Delete Topic">🗑️</button>
+                                </div>
+                              </>
+                            )}
+                          </li>
+                        );
+                      })}
                     </ul>
                   </>
                 );

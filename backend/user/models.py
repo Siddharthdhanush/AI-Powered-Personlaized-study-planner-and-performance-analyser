@@ -27,6 +27,10 @@ class Preferences(Base):
     sleep_time = Column(String, default="23:00")
     study_start_time = Column(String, default="17:30")
     break_duration = Column(Integer, default=15) # in minutes
+    college_start_time = Column(String, default="09:00")
+    college_end_time = Column(String, default="16:00")
+    busy_start_time = Column(String, default="18:00")
+    busy_end_time = Column(String, default="19:00")
 
     student = relationship("Student", back_populates="preferences")
 

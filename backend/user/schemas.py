@@ -28,6 +28,10 @@ class PreferencesBase(BaseModel):
     sleep_time: str
     study_start_time: str = "17:30"
     break_duration: int
+    college_start_time: Optional[str] = "09:00"
+    college_end_time: Optional[str] = "16:00"
+    busy_start_time: Optional[str] = "18:00"
+    busy_end_time: Optional[str] = "19:00"
 
 class PreferencesUpdate(PreferencesBase):
     daily_hours: Optional[float] = None
@@ -35,6 +39,10 @@ class PreferencesUpdate(PreferencesBase):
     sleep_time: Optional[str] = None
     study_start_time: Optional[str] = None
     break_duration: Optional[int] = None
+    college_start_time: Optional[str] = None
+    college_end_time: Optional[str] = None
+    busy_start_time: Optional[str] = None
+    busy_end_time: Optional[str] = None
 
 class PreferencesOut(PreferencesBase):
     id: int

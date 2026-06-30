@@ -5,8 +5,104 @@ from backend.user.models import Preferences
 from backend.syllabus.models import Topic, Exam
 from backend.planning.models import StudyPlan
 
+def get_next_available_slot(db: Session, student_id: int, target_date: date, current_time: datetime, duration_minutes: int, prefs) -> tuple[date, datetime, datetime]:
+    """
+    Finds the next valid slot for a session that:
+    1. Does not overlap with college hours.
+    2. Does not overlap with busy hours.
+    3. Does not overlap with sleeping hours.
+    4. Does not overlap with existing scheduled plans for other subjects.
+    
+    Returns (actual_date, start_datetime, end_datetime)
+    """
+    # Parse busy timings safely
+    college_start = datetime.strptime(getattr(prefs, 'college_start_time', '09:00') or '09:00', "%H:%M").time()
+    college_end = datetime.strptime(getattr(prefs, 'college_end_time', '16:00') or '16:00', "%H:%M").time()
+    
+    busy_start = datetime.strptime(getattr(prefs, 'busy_start_time', '18:00') or '18:00', "%H:%M").time()
+    busy_end = datetime.strptime(getattr(prefs, 'busy_end_time', '19:00') or '19:00', "%H:%M").time()
+    
+    sleep_t = datetime.strptime(prefs.sleep_time, "%H:%M").time()
+    wake_t = datetime.strptime(prefs.wake_time, "%H:%M").time()
+    
+    proposed_start = datetime.combine(target_date, current_time.time())
+    
+    attempts = 0
+    while attempts < 1000:
+        start_time_only = proposed_start.time()
+        proposed_end = proposed_start + timedelta(minutes=duration_minutes)
+        end_time_only = proposed_end.time()
+        
+        # 1. Sleep hours overlap
+        in_sleep = False
+        if sleep_t > wake_t:
+            if start_time_only >= sleep_t or start_time_only < wake_t or end_time_only > sleep_t or end_time_only <= wake_t:
+                in_sleep = True
+        else:
+            if sleep_t <= start_time_only < wake_t or sleep_t < end_time_only <= wake_t:
+                in_sleep = True
+                
+        if in_sleep:
+            if start_time_only >= sleep_t:
+                proposed_start = datetime.combine(proposed_start.date() + timedelta(days=1), wake_t)
+            else:
+                proposed_start = datetime.combine(proposed_start.date(), wake_t)
+            attempts += 1
+            continue
+            
+        # 2. College hours overlap
+        in_college = False
+        if college_start < college_end:
+            if not (end_time_only <= college_start or start_time_only >= college_end):
+                in_college = True
+        if in_college:
+            proposed_start = datetime.combine(proposed_start.date(), college_end)
+            attempts += 1
+            continue
+            
+        # 3. Busy hours overlap
+        in_busy = False
+        if busy_start < busy_end:
+            if not (end_time_only <= busy_start or start_time_only >= busy_end):
+                in_busy = True
+        if in_busy:
+            proposed_start = datetime.combine(proposed_start.date(), busy_end)
+            attempts += 1
+            continue
+            
+        # 4. Overlap with existing plans in database
+        overlap_plans = db.query(StudyPlan).filter(
+            StudyPlan.student_id == student_id,
+            StudyPlan.planned_date == proposed_start.date()
+        ).all()
+        
+        has_overlap = False
+        overlapping_end = None
+        for plan in overlap_plans:
+            if not plan.start_time or not plan.end_time:
+                continue
+            p_start = datetime.strptime(plan.start_time, "%H:%M").time()
+            p_end = datetime.strptime(plan.end_time, "%H:%M").time()
+            
+            if not (end_time_only <= p_start or start_time_only >= p_end):
+                has_overlap = True
+                overlapping_end = p_end
+                break
+                
+        if has_overlap:
+            # Jump to end of overlapping session + break duration
+            proposed_start = datetime.combine(proposed_start.date(), overlapping_end) + timedelta(minutes=prefs.break_duration)
+            attempts += 1
+            continue
+            
+        # Found slot!
+        return proposed_start.date(), proposed_start, proposed_end
+        
+    return proposed_start.date(), proposed_start, proposed_start + timedelta(minutes=duration_minutes)
+
 def generate_timetable(db: Session, student_id: int, subject_id: int):
-    # 1. Fetch preferences for daily hours
+    from sqlalchemy import func
+    # 1. Fetch preferences
     prefs = db.query(Preferences).filter(Preferences.student_id == student_id).first()
     if not prefs:
         raise HTTPException(status_code=400, detail="Student preferences not set")
@@ -20,7 +116,6 @@ def generate_timetable(db: Session, student_id: int, subject_id: int):
     # Initialize topics tracking
     topic_queue = []
     topics_query = db.query(Topic).filter(Topic.subject_id == exam.subject_id).all()
-    topic_time_map = {t.topic_id: t.preferred_time for t in topics_query}
     
     for t in topics_query:
         topic_queue.append({
@@ -29,82 +124,74 @@ def generate_timetable(db: Session, student_id: int, subject_id: int):
         })
 
     # Clean existing study plans for this subject to regenerate
-    # We find all study plans for the user that belong to topics of this subject
     topic_ids = [t.topic_id for t in topics_query]
     db.query(StudyPlan).filter(
         StudyPlan.student_id == student_id,
         StudyPlan.topic_id.in_(topic_ids)
     ).delete(synchronize_session=False)
 
-    # 4. Distribution Algorithm
-    # For MVP, we will simply allocate chunks of time to topics sequentially 
-    # until we hit the exam date or finish the topics.
-    
     current_date = date.today()
     if current_date > exam.exam_date:
         raise HTTPException(status_code=400, detail="Exam date is in the past")
 
     created_plans = []
     
-    # Allocate sequentially day by day
-    while topic_queue and current_date < exam.exam_date:
-        minutes_remaining_today = daily_minutes_available
+    # Start time for the day
+    try:
+        start_time_dt = datetime.strptime(prefs.study_start_time, "%H:%M")
+    except:
+        start_time_dt = datetime.strptime("17:30", "%H:%M")
         
-        # Parse the start time for the day
-        try:
-            current_time = datetime.strptime(prefs.study_start_time, "%H:%M")
-        except:
-            current_time = datetime.strptime("17:30", "%H:%M")
+    current_sched_dt = datetime.combine(current_date, start_time_dt.time())
 
-        while minutes_remaining_today > 0 and topic_queue:
-            current_topic = topic_queue[0]
+    while topic_queue and current_sched_dt.date() < exam.exam_date:
+        # Calculate already scheduled minutes for the student on this specific date
+        existing_minutes = db.query(func.sum(StudyPlan.planned_minutes)).filter(
+            StudyPlan.student_id == student_id,
+            StudyPlan.planned_date == current_sched_dt.date()
+        ).scalar() or 0
+        
+        minutes_remaining_today = daily_minutes_available - int(existing_minutes)
+
+        if minutes_remaining_today <= 0:
+            # Move pointer to tomorrow morning
+            current_sched_dt = datetime.combine(current_sched_dt.date() + timedelta(days=1), start_time_dt.time())
+            continue
+
+        current_topic = topic_queue[0]
+        allocate_time = min(minutes_remaining_today, current_topic["minutes_left"])
+
+        if allocate_time > 0:
+            actual_date, slot_start, slot_end = get_next_available_slot(
+                db, student_id, current_sched_dt.date(), current_sched_dt, allocate_time, prefs
+            )
             
-            # Use preferred time if available (forces a jump to that time)
-            topic_pref = topic_time_map.get(current_topic["topic_id"])
-            if topic_pref:
-                try:
-                    pref_dt = datetime.strptime(topic_pref, "%H:%M")
-                    # To avoid going backwards in a single day, we use max
-                    if current_time.time() < pref_dt.time():
-                        current_time = pref_dt
-                except:
-                    pass
-            
-            # Allocate up to the max we can do today
-            allocate_time = min(minutes_remaining_today, current_topic["minutes_left"])
-            
-            if allocate_time > 0:
-                start_str = current_time.strftime("%H:%M")
-                current_time += timedelta(minutes=allocate_time)
-                end_str = current_time.strftime("%H:%M")
+            # If the slot got pushed to a future date, reset scheduling pointer to that date's morning
+            if actual_date > current_sched_dt.date():
+                current_sched_dt = datetime.combine(actual_date, start_time_dt.time())
+                continue
                 
-                plan = StudyPlan(
-                    student_id=student_id,
-                    topic_id=current_topic["topic_id"],
-                    planned_date=current_date,
-                    planned_minutes=allocate_time,
-                    start_time=start_str,
-                    end_time=end_str,
-                    is_completed=False
-                )
-                db.add(plan)
-                created_plans.append(plan)
-                
-                # Add break time for next session on same day
-                current_time += timedelta(minutes=prefs.break_duration)
+            plan = StudyPlan(
+                student_id=student_id,
+                topic_id=current_topic["topic_id"],
+                planned_date=actual_date,
+                planned_minutes=allocate_time,
+                start_time=slot_start.strftime("%H:%M"),
+                end_time=slot_end.strftime("%H:%M"),
+                is_completed=False
+            )
+            db.add(plan)
+            created_plans.append(plan)
+            
+            # Advance time pointer by slot duration + break duration
+            current_sched_dt = slot_end + timedelta(minutes=prefs.break_duration)
             
             current_topic["minutes_left"] -= allocate_time
-            minutes_remaining_today -= allocate_time
-
-            # If topic finished, remove from queue
             if current_topic["minutes_left"] <= 0:
                 topic_queue.pop(0)
+        else:
+            # Move pointer to tomorrow morning
+            current_sched_dt = datetime.combine(current_sched_dt.date() + timedelta(days=1), start_time_dt.time())
 
-        # Move to next day
-        current_date += timedelta(days=1)
-
-    # Note: If topic_queue is not empty here, the user doesn't have enough days/hours to finish the syllabus.
-    # We could return a warning, but for now we just commit what we generated.
     db.commit()
-
     return {"message": "Timetable generated successfully", "plans_created": len(created_plans)}
