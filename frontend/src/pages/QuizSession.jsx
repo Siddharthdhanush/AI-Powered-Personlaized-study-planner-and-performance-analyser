@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api';
 
 function QuizSession() {
   const [subjects, setSubjects] = useState([]);
-  const [selectedTopic, setSelectedTopic] = useState('');
+  const [timetable, setTimetable] = useState([]);
+  const [selectedTopics, setSelectedTopics] = useState([]);
   const [quizStatus, setQuizStatus] = useState('IDLE'); // IDLE, GENERATING, READY, SUBMITTING, DONE
   
   const [questions, setQuestions] = useState([]);
@@ -12,24 +13,67 @@ function QuizSession() {
   const [score, setScore] = useState(null);
 
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
-    const fetchSubjects = async () => {
+    const fetchData = async () => {
       try {
-        const res = await api.get('/syllabus/subjects');
-        setSubjects(res.data);
+        const [subRes, timeRes] = await Promise.all([
+          api.get('/syllabus/subjects'),
+          api.get('/planning/timetable')
+        ]);
+        setSubjects(subRes.data);
+        setTimetable(timeRes.data);
+        
+        // If topicIds list is passed in state, auto-generate the multi-topic adaptive quiz immediately
+        if (location.state && location.state.topicIds) {
+          const tIds = location.state.topicIds;
+          setSelectedTopics(tIds.map(String));
+          setQuizStatus('GENERATING');
+          
+          // Clear history state so that browser refresh or resetting does not re-trigger auto-generation
+          navigate(location.pathname, { replace: true, state: {} });
+          
+          try {
+            const quizRes = await api.post('/ai/quiz/generate', { topic_ids: tIds });
+            setQuestions(quizRes.data.questions);
+            setQuizStatus('READY');
+            setAnswers({});
+          } catch (err) {
+            alert(err.response?.data?.detail || 'Failed to auto-generate adaptive quiz. Is Ollama running?');
+            setQuizStatus('IDLE');
+          }
+        } else if (location.state && location.state.topicId) {
+          // Fallback if a single topicId is passed
+          const tId = location.state.topicId.toString();
+          setSelectedTopics([tId]);
+          setQuizStatus('GENERATING');
+          
+          // Clear history state
+          navigate(location.pathname, { replace: true, state: {} });
+          
+          try {
+            const quizRes = await api.post('/ai/quiz/generate', { topic_ids: [parseInt(tId)] });
+            setQuestions(quizRes.data.questions);
+            setQuizStatus('READY');
+            setAnswers({});
+          } catch (err) {
+            alert(err.response?.data?.detail || 'Failed to auto-generate quiz. Is Ollama running?');
+            setQuizStatus('IDLE');
+          }
+        }
       } catch (err) {
         navigate('/login');
       }
     };
-    fetchSubjects();
-  }, [navigate]);
+    fetchData();
+  }, [navigate, location]);
 
   const handleGenerateQuiz = async () => {
-    if (!selectedTopic) return;
+    if (selectedTopics.length === 0) return;
     setQuizStatus('GENERATING');
     try {
-      const res = await api.post(`/ai/quiz/generate/${selectedTopic}`);
+      const res = await api.post('/ai/quiz/generate', { topic_ids: selectedTopics.map(id => parseInt(id)) });
       setQuestions(res.data.questions);
       setQuizStatus('READY');
       setAnswers({});
@@ -58,7 +102,7 @@ function QuizSession() {
   const handleSubmitQuiz = async () => {
     setQuizStatus('SUBMITTING');
     const submissionData = {
-      topic_id: parseInt(selectedTopic),
+      topic_id: selectedTopics.length > 0 ? parseInt(selectedTopics[0]) : null,
       answers: questions.map(q => ({
         question_id: q.question_id,
         selected_option: answers[q.question_id] || null,
@@ -77,8 +121,17 @@ function QuizSession() {
     }
   };
 
-  // Build a flat list of topics for the dropdown
-  const allTopics = subjects.flatMap(s => s.topics.map(t => ({...t, subject_name: s.subject_name})));
+  const getTopicName = (topicId) => {
+    for (let s of subjects) {
+      const t = s.topics.find(t => t.topic_id === topicId);
+      if (t) return t.topic_name;
+    }
+    return `Topic #${topicId}`;
+  };
+
+  const completedTopicIds = Array.from(new Set(
+    timetable.filter(s => s.is_completed).map(s => s.topic_id)
+  ));
 
   return (
     <div style={{maxWidth: '800px', margin: '0 auto'}}>
@@ -86,20 +139,66 @@ function QuizSession() {
 
       {quizStatus === 'IDLE' && (
         <div className="glass-panel">
-          <h2>Select a Topic</h2>
-          <p>Choose a topic to let the AI generate a personalized quiz for you!</p>
-          <div className="form-group" style={{marginTop: '16px'}}>
-            <select className="input-field" value={selectedTopic} onChange={e => setSelectedTopic(e.target.value)}>
-              <option value="">-- Choose a topic --</option>
-              {allTopics.map(t => (
-                <option key={t.topic_id} value={t.topic_id}>
-                  {t.subject_name} - {t.topic_name}
-                </option>
-              ))}
-            </select>
+          <h2>Select Topics</h2>
+          <p>Choose one or more topics to generate a custom adaptive quiz. Topics you have completed study sessions for are highlighted.</p>
+          
+          <div style={{display: 'flex', flexDirection: 'column', gap: '16px', margin: '20px 0'}}>
+            {subjects.map(subject => (
+              <div key={subject.subject_id} style={{border: '1px solid var(--border-color)', borderRadius: '8px', padding: '16px', background: '#fff'}}>
+                <h3 style={{margin: '0 0 12px 0', color: 'var(--accent-color)', fontSize: '1.05rem'}}>{subject.subject_name}</h3>
+                <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px'}}>
+                  {subject.topics.map(t => {
+                    const isCompleted = completedTopicIds.includes(t.topic_id);
+                    const isChecked = selectedTopics.includes(t.topic_id.toString());
+                    return (
+                      <label 
+                        key={t.topic_id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '8px 12px',
+                          background: isChecked ? '#eff6ff' : '#f9fafb',
+                          border: `1px solid ${isChecked ? 'var(--accent-color)' : 'var(--border-color)'}`,
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '0.9rem',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedTopics([...selectedTopics, t.topic_id.toString()]);
+                            } else {
+                              setSelectedTopics(selectedTopics.filter(id => id !== t.topic_id.toString()));
+                            }
+                          }}
+                          style={{accentColor: 'var(--accent-color)'}}
+                        />
+                        <span style={{flex: 1}}>{t.topic_name}</span>
+                        {isCompleted && (
+                          <span style={{fontSize: '0.7rem', padding: '2px 6px', background: '#10b981', color: '#fff', borderRadius: '4px', fontWeight: 600}}>
+                            Completed
+                          </span>
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
-          <button className="btn" onClick={handleGenerateQuiz} disabled={!selectedTopic} style={{marginTop: '16px', width: '100%'}}>
-            ✨ Generate Quiz (10 Questions)
+
+          <button 
+            className="btn" 
+            onClick={handleGenerateQuiz} 
+            disabled={selectedTopics.length === 0} 
+            style={{width: '100%', padding: '12px'}}
+          >
+            ✨ Generate Adaptive Quiz ({selectedTopics.length} Topics selected)
           </button>
         </div>
       )}
@@ -125,8 +224,14 @@ function QuizSession() {
                 <h3 style={{fontSize: '1.1rem', marginBottom: '16px'}}>
                   <span style={{color: 'var(--accent-color)', marginRight: '8px'}}>Q{idx + 1}.</span> 
                   {q.question_text}
-                  <span style={{fontSize: '0.8rem', color: 'var(--text-secondary)', marginLeft: '8px', padding: '2px 6px', background: '#e5e7eb', borderRadius: '4px'}}>
+                  <span style={{fontSize: '0.75rem', color: 'var(--text-secondary)', marginLeft: '8px', padding: '2px 6px', background: '#e5e7eb', borderRadius: '4px', display: 'inline-block'}}>
                     {q.question_type || 'MCQ'}
+                  </span>
+                  <span style={{fontSize: '0.75rem', color: '#1e3a8a', marginLeft: '6px', padding: '2px 6px', background: '#dbeafe', borderRadius: '4px', display: 'inline-block'}}>
+                    {q.difficulty || 'Medium'}
+                  </span>
+                  <span style={{fontSize: '0.75rem', color: '#065f46', marginLeft: '6px', padding: '2px 6px', background: '#d1fae5', borderRadius: '4px', display: 'inline-block'}}>
+                    {getTopicName(q.topic_id)}
                   </span>
                 </h3>
                 

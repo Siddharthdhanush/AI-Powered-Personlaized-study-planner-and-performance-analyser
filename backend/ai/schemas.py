@@ -10,7 +10,7 @@ class QuestionBase(BaseModel):
     option_c: Optional[str] = None
     option_d: Optional[str] = None
     correct_option: str
-    explanation: str
+    explanation: Optional[str] = None
     difficulty: str
     question_type: Optional[str] = "MCQ"
 
@@ -26,6 +26,9 @@ class QuizGenerationResponse(BaseModel):
     message: str
     questions: List[QuestionOut]
 
+class AdaptiveQuizRequest(BaseModel):
+    topic_ids: List[int]
+
 # --- Assessments ---
 class AnswerSubmission(BaseModel):
     question_id: int
@@ -34,7 +37,7 @@ class AnswerSubmission(BaseModel):
     is_skipped: bool
 
 class AssessmentSubmit(BaseModel):
-    topic_id: int
+    topic_id: Optional[int] = None
     answers: List[AnswerSubmission]
 
 class AssessmentOut(BaseModel):
@@ -85,12 +88,12 @@ class ExplanationResponse(BaseModel):
 # --- Mock Test ---
 class MockTestQuestion(BaseModel):
     question_text: str
-    option_a: str
-    option_b: str
-    option_c: str
-    option_d: str
+    option_a: Optional[str] = None
+    option_b: Optional[str] = None
+    option_c: Optional[str] = None
+    option_d: Optional[str] = None
     correct_option: str
-    explanation: str
+    explanation: Optional[str] = None
     difficulty: str
     topic: Optional[str] = None
 

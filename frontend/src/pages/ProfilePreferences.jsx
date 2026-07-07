@@ -37,7 +37,18 @@ function ProfilePreferences() {
         }
         
         try {
-          setWeeklyBusy(JSON.parse(prefRes.data.weekly_busy_timings || '{}'));
+          const rawBusy = JSON.parse(prefRes.data.weekly_busy_timings || '{}');
+          const normalizedBusy = {};
+          Object.keys(rawBusy).forEach(day => {
+            if (rawBusy[day]) {
+              if (Array.isArray(rawBusy[day])) {
+                normalizedBusy[day] = rawBusy[day];
+              } else {
+                normalizedBusy[day] = [rawBusy[day]];
+              }
+            }
+          });
+          setWeeklyBusy(normalizedBusy);
         } catch(e) {
           setWeeklyBusy({});
         }
@@ -66,14 +77,42 @@ function ProfilePreferences() {
     }));
   };
 
-  const handleDayBusyChange = (day, field, value) => {
+  const handleAddBusySlot = (day) => {
     setWeeklyBusy(prev => ({
       ...prev,
-      [day]: {
-        ...(prev[day] || { start: preferences.busy_start_time || '17:00', end: preferences.busy_end_time || '18:30' }),
-        [field]: value
-      }
+      [day]: [
+        ...(Array.isArray(prev[day]) ? prev[day] : prev[day] ? [prev[day]] : []),
+        { start: preferences.busy_start_time || '18:00', end: preferences.busy_end_time || '19:00' }
+      ]
     }));
+  };
+
+  const handleRemoveBusySlot = (day, index) => {
+    setWeeklyBusy(prev => {
+      const daySlots = Array.isArray(prev[day]) ? [...prev[day]] : prev[day] ? [prev[day]] : [];
+      daySlots.splice(index, 1);
+      const updated = { ...prev };
+      if (daySlots.length === 0) {
+        delete updated[day];
+      } else {
+        updated[day] = daySlots;
+      }
+      return updated;
+    });
+  };
+
+  const handleBusySlotChange = (day, index, field, value) => {
+    setWeeklyBusy(prev => {
+      const daySlots = Array.isArray(prev[day]) ? [...prev[day]] : prev[day] ? [prev[day]] : [];
+      daySlots[index] = {
+        ...daySlots[index],
+        [field]: value
+      };
+      return {
+        ...prev,
+        [day]: daySlots
+      };
+    });
   };
 
   const toggleUseCustomDay = (day, type) => {
@@ -93,7 +132,7 @@ function ProfilePreferences() {
         if (updated[day]) {
           delete updated[day];
         } else {
-          updated[day] = { start: preferences.busy_start_time || '17:00', end: preferences.busy_end_time || '18:30' };
+          updated[day] = [{ start: preferences.busy_start_time || '18:00', end: preferences.busy_end_time || '19:00' }];
         }
         return updated;
       });
@@ -294,22 +333,42 @@ function ProfilePreferences() {
                       Custom Busy Hours
                     </label>
                     {customBusy ? (
-                      <div style={{display: 'flex', gap: '8px', alignItems: 'center'}}>
-                        <input 
-                          type="time" 
-                          className="input-field" 
-                          style={{padding: '4px 8px', fontSize: '0.8rem'}}
-                          value={customBusy.start} 
-                          onChange={e => handleDayBusyChange(day, 'start', e.target.value)} 
-                        />
-                        <span style={{fontSize: '0.8rem', color: 'var(--text-secondary)'}}>to</span>
-                        <input 
-                          type="time" 
-                          className="input-field" 
-                          style={{padding: '4px 8px', fontSize: '0.8rem'}}
-                          value={customBusy.end} 
-                          onChange={e => handleDayBusyChange(day, 'end', e.target.value)} 
-                        />
+                      <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
+                        {customBusy.map((slot, index) => (
+                          <div key={index} style={{display: 'flex', gap: '6px', alignItems: 'center'}}>
+                            <input 
+                              type="time" 
+                              className="input-field" 
+                              style={{padding: '4px 8px', fontSize: '0.8rem', width: '80px'}}
+                              value={slot.start} 
+                              onChange={e => handleBusySlotChange(day, index, 'start', e.target.value)} 
+                            />
+                            <span style={{fontSize: '0.8rem', color: 'var(--text-secondary)'}}>to</span>
+                            <input 
+                              type="time" 
+                              className="input-field" 
+                              style={{padding: '4px 8px', fontSize: '0.8rem', width: '80px'}}
+                              value={slot.end} 
+                              onChange={e => handleBusySlotChange(day, index, 'end', e.target.value)} 
+                            />
+                            <button 
+                              type="button" 
+                              onClick={() => handleRemoveBusySlot(day, index)} 
+                              style={{background: 'none', border: 'none', color: 'var(--danger-color)', cursor: 'pointer', fontSize: '0.9rem', padding: '0 4px'}}
+                              title="Remove slot"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                        <button 
+                          type="button" 
+                          onClick={() => handleAddBusySlot(day)} 
+                          className="btn" 
+                          style={{padding: '4px 8px', fontSize: '0.75rem', alignSelf: 'flex-start', background: '#3b82f6'}}
+                        >
+                          + Add Interval
+                        </button>
                       </div>
                     ) : (
                       <span style={{fontSize: '0.85rem', color: 'var(--text-secondary)'}}>

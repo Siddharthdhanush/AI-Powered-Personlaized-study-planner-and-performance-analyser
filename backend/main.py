@@ -38,3 +38,8 @@ app.include_router(ml_router, prefix="/api/ml", tags=["ML"])
 @app.get("/")
 def root():
     return {"message": "Welcome to the AIML System API"}
+
+@app.on_event("shutdown")
+def on_shutdown():
+    from backend.ai.ollama_client import unload_model
+    unload_model()

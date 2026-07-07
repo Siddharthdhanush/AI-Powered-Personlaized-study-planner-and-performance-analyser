@@ -57,6 +57,7 @@ def get_llama3_response(prompt_text: str, json_format: bool = False):
     kwargs = {
         "model": selected_model,
         "messages": messages,
+        "keep_alive": -1,
         "options": {
             "temperature": 0.0
         }
@@ -91,3 +92,14 @@ def get_llama3_response(prompt_text: str, json_format: bool = False):
     except Exception as e:
         print(f"Ollama connection error: {e}")
         return None
+
+def unload_model():
+    """
+    Forces Ollama to unload the currently active model to free up GPU memory.
+    """
+    try:
+        selected_model = _get_available_model()
+        ollama.generate(model=selected_model, keep_alive=0)
+        print(f"Unloaded Ollama model '{selected_model}' from VRAM.")
+    except Exception as e:
+        print(f"Could not unload Ollama model: {e}")

@@ -99,67 +99,151 @@ def extract_syllabus(
         "topics": raw_topics
     }
 
+@router.post("/quiz/generate", response_model=schemas.QuizGenerationResponse)
+def generate_adaptive_quiz(
+    payload: schemas.AdaptiveQuizRequest,
+    current_user: Student = Depends(auth.get_current_user),
+    db: Session = Depends(database.get_db)
+):
+    if not payload.topic_ids:
+        raise HTTPException(status_code=400, detail="No topic IDs provided")
+        
+    topics_list = []
+    for t_id in payload.topic_ids:
+        topic = db.query(Topic).filter(Topic.topic_id == t_id).first()
+        if not topic:
+            continue
+            
+        topics_list.append({
+            "topic_id": topic.topic_id,
+            "topic_name": topic.topic_name
+        })
+        
+        # Clear old questions for this topic to avoid duplicates
+        db.query(models.Question).filter(models.Question.topic_id == t_id).delete()
+        db.commit()
+        
+    try:
+        raw_questions = question_generator.generate_quiz_for_topics_adaptive(topics_list)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+        
+    saved_questions = []
+    name_to_id = {t["topic_name"]: t["topic_id"] for t in topics_list}
+    
+    for q_data in raw_questions:
+        q_topic_name = q_data.get("topic_name")
+        q_topic_id = name_to_id.get(q_topic_name, payload.topic_ids[0])
+        
+        q = models.Question(
+            topic_id=q_topic_id,
+            question_text=q_data.get("question_text", "Missing Question"),
+            option_a=q_data.get("option_a") or "",
+            option_b=q_data.get("option_b") or "",
+            option_c=q_data.get("option_c") or "",
+            option_d=q_data.get("option_d") or "",
+            correct_option=q_data.get("correct_option", ""),
+            explanation=q_data.get("explanation", ""),
+            difficulty=q_data.get("difficulty", "Medium"),
+            question_type=q_data.get("question_type", "MCQ"),
+            generated_by="ollama"
+        )
+        db.add(q)
+        saved_questions.append(q)
+        
+    db.commit()
+    for q in saved_questions:
+        db.refresh(q)
+        
+    return {"message": "Adaptive quiz generated successfully", "questions": saved_questions}
+
 @router.post("/assessment/submit", response_model=schemas.AssessmentOut)
 def submit_assessment(
     data: schemas.AssessmentSubmit,
     current_user: Student = Depends(auth.get_current_user),
     db: Session = Depends(database.get_db)
 ):
-    # 1. Create Assessment
-    assessment = models.Assessment(
-        student_id=current_user.student_id,
-        topic_id=data.topic_id
-    )
-    db.add(assessment)
-    db.commit()
-    db.refresh(assessment)
-
-    # 2. Add Answers & calculate score
-    correct_count = 0
+    # Group submitted answers by their question's topic_id
+    answers_by_topic = {}
     for ans_data in data.answers:
         q = db.query(models.Question).filter(models.Question.question_id == ans_data.question_id).first()
-        is_correct = False
-        if q and not ans_data.is_skipped and ans_data.selected_option:
-            q_type = getattr(q, 'question_type', 'MCQ')
-            user_ans = ans_data.selected_option.strip()
-            correct_ans = q.correct_option.strip()
-            
-            if q_type == 'MCQ':
-                if user_ans == correct_ans:
-                    is_correct = True
-            elif q_type == 'MULTI_MCQ':
-                u_opts = sorted([o.strip() for o in user_ans.split(",") if o.strip()])
-                c_opts = sorted([o.strip() for o in correct_ans.split(",") if o.strip()])
-                if u_opts == c_opts:
-                    is_correct = True
-            elif q_type == 'FIB':
-                if user_ans.lower() == correct_ans.lower():
-                    is_correct = True
-            elif q_type == 'DESCRIPTIVE':
-                # Mark as correct if user wrote something meaningful (>10 characters)
-                if len(user_ans) >= 10:
-                    is_correct = True
-                    
-        if is_correct:
-            correct_count += 1
-            
-        ans = models.AssessmentAnswer(
-            assessment_id=assessment.assessment_id,
-            question_id=ans_data.question_id,
-            selected_option=ans_data.selected_option,
-            is_correct=is_correct,
-            response_time=ans_data.response_time,
-            is_skipped=ans_data.is_skipped
+        if q:
+            t_id = q.topic_id
+            if t_id not in answers_by_topic:
+                answers_by_topic[t_id] = []
+            answers_by_topic[t_id].append((ans_data, q))
+
+    created_assessments = []
+    total_questions = 0
+    total_correct = 0
+
+    for t_id, answer_pairs in answers_by_topic.items():
+        assessment = models.Assessment(
+            student_id=current_user.student_id,
+            topic_id=t_id
         )
-        db.add(ans)
-        
-    # Finalize score (percentage)
-    total_q = len(data.answers)
-    assessment.score = (correct_count / total_q * 100) if total_q > 0 else 0
-    db.commit()
-    db.refresh(assessment)
-    
-    return assessment
+        db.add(assessment)
+        db.commit()
+        db.refresh(assessment)
+
+        correct_count = 0
+        for ans_data, q in answer_pairs:
+            is_correct = False
+            if not ans_data.is_skipped and ans_data.selected_option:
+                q_type = getattr(q, 'question_type', 'MCQ')
+                user_ans = ans_data.selected_option.strip()
+                correct_ans = q.correct_option.strip()
+                
+                if q_type == 'MCQ':
+                    if user_ans == correct_ans:
+                        is_correct = True
+                elif q_type == 'MULTI_MCQ':
+                    u_opts = sorted([o.strip() for o in user_ans.split(",") if o.strip()])
+                    c_opts = sorted([o.strip() for o in correct_ans.split(",") if o.strip()])
+                    if u_opts == c_opts:
+                        is_correct = True
+                elif q_type == 'FIB':
+                    if user_ans.lower() == correct_ans.lower():
+                        is_correct = True
+                elif q_type == 'DESCRIPTIVE':
+                    if len(user_ans) >= 10:
+                        is_correct = True
+                        
+            if is_correct:
+                correct_count += 1
+                total_correct += 1
+            total_questions += 1
+
+            ans = models.AssessmentAnswer(
+                assessment_id=assessment.assessment_id,
+                question_id=ans_data.question_id,
+                selected_option=ans_data.selected_option,
+                is_correct=is_correct,
+                response_time=ans_data.response_time,
+                is_skipped=ans_data.is_skipped
+            )
+            db.add(ans)
+            
+        assessment.score = (correct_count / len(answer_pairs) * 100) if answer_pairs else 0
+        db.commit()
+        db.refresh(assessment)
+        created_assessments.append(assessment)
+
+    overall_score = (total_correct / total_questions * 100) if total_questions > 0 else 0
+    if created_assessments:
+        res_obj = created_assessments[0]
+        res_obj.score = overall_score
+        return res_obj
+    else:
+        fallback = models.Assessment(
+            student_id=current_user.student_id,
+            topic_id=data.topic_id or 1,
+            score=0.0
+        )
+        db.add(fallback)
+        db.commit()
+        db.refresh(fallback)
+        return fallback
 
 @router.post("/summary/{topic_id}", response_model=schemas.SummaryResponse)
 def generate_summary(

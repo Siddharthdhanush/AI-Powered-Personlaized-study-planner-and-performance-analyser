@@ -29,7 +29,13 @@ def get_next_available_slot(db: Session, student_id: int, target_date: date, cur
             
     if getattr(prefs, 'weekly_busy_timings', None):
         try:
-            weekly_busy = json.loads(prefs.weekly_busy_timings)
+            raw_busy = json.loads(prefs.weekly_busy_timings)
+            # Normalize to array of dict slots
+            for day, slots in raw_busy.items():
+                if isinstance(slots, list):
+                    weekly_busy[day] = slots
+                elif isinstance(slots, dict):
+                    weekly_busy[day] = [slots]
         except:
             pass
 
@@ -79,19 +85,30 @@ def get_next_available_slot(db: Session, student_id: int, target_date: date, cur
             attempts += 1
             continue
             
-        # 3. Busy hours overlap (customized by day)
-        day_busy = weekly_busy.get(day_name, {"start": prefs.busy_start_time, "end": prefs.busy_end_time})
-        b_start_str = day_busy.get("start") or prefs.busy_start_time or "18:00"
-        b_end_str = day_busy.get("end") or prefs.busy_end_time or "19:00"
-        busy_start = datetime.strptime(b_start_str, "%H:%M").time()
-        busy_end = datetime.strptime(b_end_str, "%H:%M").time()
-        
+        # 3. Busy hours overlap (customized by day, checks multiple intervals)
+        busy_slots = weekly_busy.get(day_name)
+        if not busy_slots:
+            # Fall back to global busy time slot
+            busy_slots = [{"start": prefs.busy_start_time or "18:00", "end": prefs.busy_end_time or "19:00"}]
+            
         in_busy = False
-        if busy_start < busy_end:
-            if not (end_time_only <= busy_start or start_time_only >= busy_end):
-                in_busy = True
+        overlapping_busy_end = None
+        for slot in busy_slots:
+            b_start_str = slot.get("start")
+            b_end_str = slot.get("end")
+            if not b_start_str or not b_end_str:
+                continue
+            busy_start = datetime.strptime(b_start_str, "%H:%M").time()
+            busy_end = datetime.strptime(b_end_str, "%H:%M").time()
+            
+            if busy_start < busy_end:
+                if not (end_time_only <= busy_start or start_time_only >= busy_end):
+                    in_busy = True
+                    overlapping_busy_end = busy_end
+                    break
+                    
         if in_busy:
-            proposed_start = datetime.combine(proposed_start.date(), busy_end)
+            proposed_start = datetime.combine(proposed_start.date(), overlapping_busy_end)
             attempts += 1
             continue
             
@@ -160,13 +177,41 @@ def generate_timetable_multiple(db: Session, student_id: int, subject_ids: list[
         
         score = latest_assessment.score if latest_assessment else None
         
+        # Check specific difficulty-based performance for priority boost
+        difficulty_boost = 0.0
+        from backend.ai.models import AssessmentAnswer, Question
+        answers = db.query(AssessmentAnswer).join(Assessment).join(Question).filter(
+            Assessment.student_id == student_id,
+            Assessment.topic_id == t.topic_id
+        ).all()
+        
+        if answers:
+            diff_counts = {"Easy": {"total": 0, "correct": 0}, "Medium": {"total": 0, "correct": 0}, "Hard": {"total": 0, "correct": 0}}
+            for ans in answers:
+                q_diff = ans.question.difficulty if ans.question else "Medium"
+                if q_diff not in diff_counts:
+                    diff_counts[q_diff] = {"total": 0, "correct": 0}
+                diff_counts[q_diff]["total"] += 1
+                if ans.is_correct:
+                    diff_counts[q_diff]["correct"] += 1
+            
+            for diff, stats in diff_counts.items():
+                if stats["total"] > 0:
+                    accuracy = stats["correct"] / stats["total"]
+                    if diff == "Easy" and accuracy < 0.7:
+                        difficulty_boost += 3.0
+                    elif diff == "Medium" and accuracy < 0.6:
+                        difficulty_boost += 2.0
+                    elif diff == "Hard" and accuracy < 0.5:
+                        difficulty_boost += 1.0
+
         # Priority calculation:
         # If score is low (<60%), boost priority significantly
         # If they haven't taken a quiz yet, give it baseline priority + 1.0 (to study before mastered ones)
         if score is not None:
-            priority = t.difficulty_weight + (100.0 - score) / 10.0
+            priority = t.difficulty_weight + (100.0 - score) / 10.0 + difficulty_boost
         else:
-            priority = t.difficulty_weight + 1.0
+            priority = t.difficulty_weight + 1.0 + difficulty_boost
             
         # Give higher priority to subjects whose exams are closer!
         exam_date = exam_dates.get(t.subject_id)

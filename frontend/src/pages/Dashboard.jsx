@@ -102,6 +102,10 @@ function Dashboard() {
   const pendingSessions = timetable.filter(t => !t.is_completed);
   const completedSessions = timetable.filter(t => t.is_completed);
 
+  const showQuizAlert = completedSessions.length > 0 && completedSessions.length % 3 === 0;
+  const lastThreeCompletedSessions = completedSessions.slice(-3);
+  const lastThreeTopicIds = Array.from(new Set(lastThreeCompletedSessions.map(s => s.topic_id)));
+
   return (
     <div>
       <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px'}}>
@@ -131,6 +135,35 @@ function Dashboard() {
           </button>
         </div>
       </div>
+
+      {showQuizAlert && (
+        <div style={{
+          background: 'linear-gradient(135deg, #fef3c7, #fde68a)',
+          color: '#78350f',
+          padding: '16px 20px',
+          borderRadius: '12px',
+          border: '1px solid #f59e0b',
+          marginBottom: '24px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          boxShadow: '0 4px 6px -1px rgba(245, 158, 11, 0.1)'
+        }}>
+          <div>
+            <h3 style={{ margin: '0 0 4px 0', fontSize: '1.05rem', color: '#78350f' }}>🔔 Time for a Quiz Check-in!</h3>
+            <p style={{ margin: 0, fontSize: '0.9rem' }}>
+              You've completed <strong>{completedSessions.length} study sessions</strong>! Take a quiz now so we can analyze your performance and optimize your timetable.
+            </p>
+          </div>
+          <button 
+            className="btn" 
+            onClick={() => navigate('/quiz', { state: { topicIds: lastThreeTopicIds } })} 
+            style={{ background: '#d97706', color: '#fff', border: 'none', padding: '8px 16px', fontWeight: 600 }}
+          >
+            Start Quiz
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-2">
         <div className="glass-panel" style={{alignSelf: 'start'}}>
@@ -442,6 +475,49 @@ function WeeklyGridView({ timetable, getTopicName, handleCompleteSession, handle
     hourlySlots.push(`${h.toString().padStart(2, '0')}:00`);
   }
 
+  const getMondayOfDate = (d) => {
+    const date = new Date(d);
+    const day = date.getDay();
+    const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(date.setDate(diff));
+    monday.setHours(0, 0, 0, 0);
+    return monday;
+  };
+
+  const getUniqueWeeks = () => {
+    const weeks = new Set();
+    const currentMondayStr = getMondayOfDate(new Date()).toISOString().split('T')[0];
+    weeks.add(currentMondayStr);
+    
+    timetable.forEach(plan => {
+      if (!plan.planned_date) return;
+      const monday = getMondayOfDate(new Date(plan.planned_date + 'T00:00:00'));
+      weeks.add(monday.toISOString().split('T')[0]);
+    });
+    return Array.from(weeks).sort();
+  };
+
+  const weeksList = getUniqueWeeks();
+  const [selectedWeek, setSelectedWeek] = useState(
+    weeksList.includes(getMondayOfDate(new Date()).toISOString().split('T')[0]) 
+      ? getMondayOfDate(new Date()).toISOString().split('T')[0] 
+      : weeksList[0] || getMondayOfDate(new Date()).toISOString().split('T')[0]
+  );
+
+  const handlePrevWeek = () => {
+    const currentIndex = weeksList.indexOf(selectedWeek);
+    if (currentIndex > 0) {
+      setSelectedWeek(weeksList[currentIndex - 1]);
+    }
+  };
+
+  const handleNextWeek = () => {
+    const currentIndex = weeksList.indexOf(selectedWeek);
+    if (currentIndex < weeksList.length - 1) {
+      setSelectedWeek(weeksList[currentIndex + 1]);
+    }
+  };
+
   const getDayName = (dateStr) => {
     const d = new Date(dateStr + 'T00:00:00');
     return d.toLocaleDateString('en-US', { weekday: 'long' });
@@ -453,10 +529,14 @@ function WeeklyGridView({ timetable, getTopicName, handleCompleteSession, handle
     return `${hour.padStart(2, '0')}:00`;
   };
 
-  // Group pending sessions
+  // Group pending sessions *only* for the selected week
   const gridMap = {};
   timetable.forEach(plan => {
     if (plan.is_completed) return;
+    
+    const planMonday = getMondayOfDate(new Date(plan.planned_date + 'T00:00:00')).toISOString().split('T')[0];
+    if (planMonday !== selectedWeek) return;
+
     const day = getDayName(plan.planned_date);
     const hour = getSessionHour(plan.start_time);
     if (day && hour) {
@@ -468,6 +548,29 @@ function WeeklyGridView({ timetable, getTopicName, handleCompleteSession, handle
 
   return (
     <div style={{ overflowX: 'auto', marginTop: '8px' }}>
+      {/* Week Selector Navigation */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', background: '#f8fafc', padding: '10px 16px', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
+        <button 
+          onClick={handlePrevWeek} 
+          disabled={weeksList.indexOf(selectedWeek) === 0}
+          className="btn"
+          style={{ padding: '6px 12px', fontSize: '0.85rem', background: '#64748b' }}
+        >
+          ← Prev Week
+        </button>
+        <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>
+          Week of: <span style={{ color: 'var(--accent-color)' }}>{new Date(selectedWeek + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+        </div>
+        <button 
+          onClick={handleNextWeek} 
+          disabled={weeksList.indexOf(selectedWeek) === weeksList.length - 1}
+          className="btn"
+          style={{ padding: '6px 12px', fontSize: '0.85rem', background: '#64748b' }}
+        >
+          Next Week →
+        </button>
+      </div>
+
       <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '900px', fontSize: '0.85rem', border: '1px solid var(--border-color)', borderRadius: '12px', overflow: 'hidden' }}>
         <thead>
           <tr style={{ background: '#f8fafc', borderBottom: '2px solid var(--border-color)' }}>
