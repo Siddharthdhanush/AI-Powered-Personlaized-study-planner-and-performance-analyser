@@ -114,9 +114,18 @@ def generate_adaptive_quiz(
         if not topic:
             continue
             
+        weight = topic.difficulty_weight or 2.0
+        if weight >= 4.0:
+            num_q = 4
+        elif weight >= 2.0:
+            num_q = 3
+        else:
+            num_q = 2
+            
         topics_list.append({
             "topic_id": topic.topic_id,
-            "topic_name": topic.topic_name
+            "topic_name": topic.topic_name,
+            "num_questions": num_q
         })
         
         # Clear old questions for this topic to avoid duplicates
@@ -195,12 +204,13 @@ def submit_assessment(
                 correct_ans = q.correct_option.strip()
                 
                 if q_type == 'MCQ':
-                    if user_ans == correct_ans:
+                    clean_correct = correct_ans.split(",")[0].strip().upper()
+                    if user_ans.upper() == clean_correct or user_ans.upper() == correct_ans.upper():
                         is_correct = True
                 elif q_type == 'MULTI_MCQ':
-                    u_opts = sorted([o.strip() for o in user_ans.split(",") if o.strip()])
-                    c_opts = sorted([o.strip() for o in correct_ans.split(",") if o.strip()])
-                    if u_opts == c_opts:
+                    u_opts = sorted([o.strip().upper() for o in user_ans.split(",") if o.strip()])
+                    c_opts = sorted([o.split(",")[0].strip().upper() for o in correct_ans.split(",") if o.strip()])
+                    if u_opts == c_opts or sorted([o.strip().upper() for o in user_ans.split(",") if o.strip()]) == sorted([o.strip().upper() for o in correct_ans.split(",") if o.strip()]):
                         is_correct = True
                 elif q_type == 'FIB':
                     if user_ans.lower() == correct_ans.lower():
@@ -229,10 +239,38 @@ def submit_assessment(
         db.refresh(assessment)
         created_assessments.append(assessment)
 
+    # Check if any topic score is < 50% and schedule remedial study sessions
+    low_performing_topics = []
+    from backend.planning.remedial import schedule_extra_remedial_session
+    from backend.syllabus.models import Topic as SyllabusTopic
+    
+    for assessment in created_assessments:
+        if assessment.score < 50.0:
+            topic = db.query(SyllabusTopic).filter(SyllabusTopic.topic_id == assessment.topic_id).first()
+            topic_name = topic.topic_name if topic else f"Topic #{assessment.topic_id}"
+            low_performing_topics.append(topic_name)
+            try:
+                schedule_extra_remedial_session(db, current_user.student_id, assessment.topic_id)
+            except Exception as e:
+                print(f"Error scheduling remedial session: {e}")
+
     overall_score = (total_correct / total_questions * 100) if total_questions > 0 else 0
+    
+    alert_msg = None
+    if low_performing_topics:
+        topics_str = ", ".join(low_performing_topics)
+        alert_msg = f"You performed poorly (< 50% score) on the following topic(s): {topics_str}. An extra remedial study session has been added to your timetable for review."
+
+    try:
+        from backend.core.exporter import export_db_to_csv
+        export_db_to_csv(db)
+    except Exception as e:
+        print(f"Error exporting data on assessment submit: {e}")
+
     if created_assessments:
         res_obj = created_assessments[0]
         res_obj.score = overall_score
+        res_obj.performance_alert = alert_msg
         return res_obj
     else:
         fallback = models.Assessment(
@@ -243,6 +281,7 @@ def submit_assessment(
         db.add(fallback)
         db.commit()
         db.refresh(fallback)
+        fallback.performance_alert = alert_msg
         return fallback
 
 @router.post("/summary/{topic_id}", response_model=schemas.SummaryResponse)

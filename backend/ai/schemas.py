@@ -46,6 +46,7 @@ class AssessmentOut(BaseModel):
     topic_id: int
     score: float
     attempt_date: datetime.datetime
+    performance_alert: Optional[str] = None
 
     class Config:
         from_attributes = True

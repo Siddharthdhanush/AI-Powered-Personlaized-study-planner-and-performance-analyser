@@ -115,6 +115,9 @@ function QuizSession() {
       const res = await api.post('/ai/assessment/submit', submissionData);
       setScore(res.data.score);
       setQuizStatus('DONE');
+      if (res.data.performance_alert) {
+        alert(res.data.performance_alert);
+      }
     } catch (err) {
       alert('Failed to submit assessment');
       setQuizStatus('READY');
@@ -127,6 +130,17 @@ function QuizSession() {
       if (t) return t.topic_name;
     }
     return `Topic #${topicId}`;
+  };
+
+  const getDifficultyBadgeStyle = (difficulty) => {
+    const diff = (difficulty || 'Medium').toLowerCase();
+    if (diff === 'easy') {
+      return { color: '#047857', background: '#d1fae5' }; // green
+    } else if (diff === 'hard') {
+      return { color: '#b91c1c', background: '#fee2e2' }; // red
+    } else {
+      return { color: '#1d4ed8', background: '#dbeafe' }; // blue
+    }
   };
 
   const completedTopicIds = Array.from(new Set(
@@ -218,6 +232,7 @@ function QuizSession() {
           {questions.map((q, idx) => {
             const isFIB = q.question_type === 'FIB';
             const isDescriptive = q.question_type === 'DESCRIPTIVE';
+            const isMultiMCQ = q.question_type === 'MULTI_MCQ' || (q.correct_option && q.correct_option.includes(','));
             
             return (
               <div key={q.question_id} style={{marginBottom: '32px', paddingBottom: '24px', borderBottom: '1px solid var(--border-color)'}}>
@@ -227,7 +242,15 @@ function QuizSession() {
                   <span style={{fontSize: '0.75rem', color: 'var(--text-secondary)', marginLeft: '8px', padding: '2px 6px', background: '#e5e7eb', borderRadius: '4px', display: 'inline-block'}}>
                     {q.question_type || 'MCQ'}
                   </span>
-                  <span style={{fontSize: '0.75rem', color: '#1e3a8a', marginLeft: '6px', padding: '2px 6px', background: '#dbeafe', borderRadius: '4px', display: 'inline-block'}}>
+                  <span style={{
+                    fontSize: '0.75rem', 
+                    marginLeft: '6px', 
+                    padding: '2px 6px', 
+                    borderRadius: '4px', 
+                    display: 'inline-block',
+                    fontWeight: 600,
+                    ...getDifficultyBadgeStyle(q.difficulty)
+                  }}>
                     {q.difficulty || 'Medium'}
                   </span>
                   <span style={{fontSize: '0.75rem', color: '#065f46', marginLeft: '6px', padding: '2px 6px', background: '#d1fae5', borderRadius: '4px', display: 'inline-block'}}>
@@ -257,7 +280,7 @@ function QuizSession() {
                   />
                 )}
                 
-                {q.question_type === 'MULTI_MCQ' && (
+                {isMultiMCQ && (
                   <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
                     <p style={{fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '0 0 8px 0'}}><em>Select all that apply (Multiple Correct Answers):</em></p>
                     {['A', 'B', 'C', 'D'].map(opt => {
@@ -293,7 +316,7 @@ function QuizSession() {
                   </div>
                 )}
 
-                {q.question_type === 'MCQ' && (
+                {!isMultiMCQ && q.question_type === 'MCQ' && (
                   <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
                     {['A', 'B', 'C', 'D'].map(opt => {
                       const optionText = q[`option_${opt.toLowerCase()}`];
@@ -364,18 +387,20 @@ function QuizSession() {
             const userAns = answers[q.question_id] || '';
             const isFIB = q.question_type === 'FIB';
             const isDescriptive = q.question_type === 'DESCRIPTIVE';
+            const isMultiMCQ = q.question_type === 'MULTI_MCQ' || (q.correct_option && q.correct_option.includes(','));
             
             let isCorrect = false;
             if (isFIB) {
               isCorrect = userAns.trim().toLowerCase() === q.correct_option.trim().toLowerCase();
             } else if (isDescriptive) {
               isCorrect = userAns.trim().length >= 10;
-            } else if (q.question_type === 'MULTI_MCQ') {
-              const uList = userAns.split(',').map(s => s.trim()).filter(Boolean).sort().join(',');
-              const cList = q.correct_option.split(',').map(s => s.trim()).filter(Boolean).sort().join(',');
-              isCorrect = uList === cList;
+            } else if (isMultiMCQ) {
+              const uList = userAns.split(',').map(s => s.trim().toUpperCase()).filter(Boolean).sort().join(',');
+              const cList = q.correct_option.split(',').map(s => s.split(',')[0].trim().toUpperCase()).filter(Boolean).sort().join(',');
+              isCorrect = uList === cList || userAns.split(',').map(s => s.trim().toUpperCase()).filter(Boolean).sort().join(',') === q.correct_option.split(',').map(s => s.trim().toUpperCase()).filter(Boolean).sort().join(',');
             } else {
-              isCorrect = userAns === q.correct_option;
+              const cleanCorrect = q.correct_option.split(',')[0].trim().toUpperCase();
+              isCorrect = userAns.toUpperCase() === cleanCorrect || userAns.toUpperCase() === q.correct_option.toUpperCase();
             }
             
             return (

@@ -22,10 +22,10 @@ def get_predictive_analytics(
     Uses actual quiz submissions to predict mastery and readiness.
     Fals back to baseline simulation if no quiz data exists.
     """
-    # 1. Fetch all assessment answers for the student
+    # 1. Fetch the most recent 30 assessment answers for the student to reflect their current readiness
     all_answers = db.query(AssessmentAnswer).join(Assessment).filter(
         Assessment.student_id == current_user.student_id
-    ).all()
+    ).order_by(Assessment.attempt_date.desc()).limit(30).all()
     
     pred_obj = None
     if all_answers:
@@ -39,22 +39,30 @@ def get_predictive_analytics(
         
         skips = sum(1 for a in all_answers if a.is_skipped)
         
-        # Predict using trained models
-        preds = pipeline.predict_performance(mcq_acc, avg_time, skips)
+        # Check if we already have a prediction with identical stats to avoid duplicate history inserts
+        latest_pred = db.query(models.MLPrediction).filter(
+            models.MLPrediction.student_id == current_user.student_id
+        ).order_by(models.MLPrediction.timestamp.desc()).first()
         
-        # Save to database for history
-        new_pred = models.MLPrediction(
-            student_id=current_user.student_id,
-            mcq_accuracy=mcq_acc,
-            avg_response_time=avg_time,
-            skip_count=skips,
-            topic_mastery=preds["topic_mastery"],
-            exam_readiness_prob=preds["exam_readiness_prob"]
-        )
-        db.add(new_pred)
-        db.commit()
-        db.refresh(new_pred)
-        pred_obj = new_pred
+        if latest_pred and latest_pred.mcq_accuracy == mcq_acc and latest_pred.avg_response_time == avg_time and latest_pred.skip_count == skips:
+            pred_obj = latest_pred
+        else:
+            # Predict using trained models
+            preds = pipeline.predict_performance(mcq_acc, avg_time, skips)
+            
+            # Save to database for history
+            new_pred = models.MLPrediction(
+                student_id=current_user.student_id,
+                mcq_accuracy=mcq_acc,
+                avg_response_time=avg_time,
+                skip_count=skips,
+                topic_mastery=preds["topic_mastery"],
+                exam_readiness_prob=preds["exam_readiness_prob"]
+            )
+            db.add(new_pred)
+            db.commit()
+            db.refresh(new_pred)
+            pred_obj = new_pred
     else:
         # Fallback simulation if they haven't taken any quizzes yet
         latest_pred = db.query(models.MLPrediction).filter(
@@ -97,6 +105,12 @@ def get_predictive_analytics(
             if topic:
                 weak_topic_names.append(topic.topic_name)
 
+    try:
+        from backend.core.exporter import export_db_to_csv
+        export_db_to_csv(db)
+    except Exception as e:
+        print(f"Error exporting data inside analytics endpoint: {e}")
+
     return {
         "topic_mastery": pred_obj.topic_mastery,
         "exam_readiness_prob": pred_obj.exam_readiness_prob,
@@ -130,3 +144,13 @@ def force_recalculate_predictions(
     db.commit()
     
     return {"message": "Predictions updated"}
+
+@router.get("/history", response_model=List[schemas.MLPredictionOut])
+def get_prediction_history(
+    current_user: Student = Depends(auth.get_current_user),
+    db: Session = Depends(database.get_db)
+):
+    history = db.query(models.MLPrediction).filter(
+        models.MLPrediction.student_id == current_user.student_id
+    ).order_by(models.MLPrediction.timestamp.asc()).all()
+    return history

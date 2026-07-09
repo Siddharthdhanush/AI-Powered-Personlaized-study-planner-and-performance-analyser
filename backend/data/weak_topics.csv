@@ -1,0 +1,9 @@
+student_id,topic_id,topic_name,latest_score
+1,1,Topic #1,0.0
+1,2,Topic #2,33.33
+1,34,"Robotic Arm, Sensing, Actuation, Automation and Autonomy",0.0
+1,35,RaspberryPi3 Servo Motor Control using Python,0.0
+1,31,Embedded Computer Architecture,50.0
+1,4,"Breadth-first Search, Depth-first Search, Depth-limited Search and Iterative Deepening Depth First Search",0.0
+1,6,"A* Search, Heuristic Functions",50.0
+1,37,OpenCV Region of Interest Marking on Jetson Nano,25.0

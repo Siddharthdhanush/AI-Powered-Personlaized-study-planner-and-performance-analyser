@@ -9,6 +9,7 @@ class StudyPlanBase(BaseModel):
     start_time: Optional[str] = None
     end_time: Optional[str] = None
     is_completed: Optional[bool] = False
+    is_remedial: Optional[bool] = False
 
 class StudyPlanCreate(StudyPlanBase):
     student_id: int

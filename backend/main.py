@@ -18,7 +18,29 @@ import backend.ml.models
 
 Base.metadata.create_all(bind=engine)
 
+from backend.core.database import SessionLocal
+from sqlalchemy import text
+try:
+    db = SessionLocal()
+    db.execute(text("ALTER TABLE study_plans ADD COLUMN is_remedial BOOLEAN DEFAULT 0"))
+    db.commit()
+    db.close()
+except Exception:
+    pass
+
 app = FastAPI(title="AIML System API", description="Adaptive AI Exam Prep API")
+
+@app.on_event("startup")
+def startup_export():
+    from backend.core.database import SessionLocal
+    from backend.core.exporter import export_db_to_csv
+    db = SessionLocal()
+    try:
+        export_db_to_csv(db)
+    except Exception as e:
+        print(f"Error doing startup data export: {e}")
+    finally:
+        db.close()
 
 # Configure CORS
 app.add_middleware(

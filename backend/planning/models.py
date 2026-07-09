@@ -13,6 +13,7 @@ class StudyPlan(Base):
     start_time = Column(String, nullable=True)
     end_time = Column(String, nullable=True)
     is_completed = Column(Boolean, default=False)
+    is_remedial = Column(Boolean, default=False)
 
     # Note: If we need relationships back to student and topic, we can add them:
     # student = relationship("Student")

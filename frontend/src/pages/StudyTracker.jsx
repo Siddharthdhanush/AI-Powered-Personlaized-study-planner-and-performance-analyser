@@ -2,6 +2,13 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
 
+const renderMarkdown = (text) => {
+  if (!text) return { __html: "" };
+  let formatted = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  formatted = formatted.replace(/^\s*\*\s+(.*)$/gm, '• $1');
+  return { __html: formatted };
+};
+
 function StudyTracker() {
   const [subjects, setSubjects] = useState([]);
   const [timetable, setTimetable] = useState([]);
@@ -66,6 +73,130 @@ function StudyTracker() {
       alert(err.response?.data?.detail || `Failed to generate ${type}. Is Ollama running?`);
     } finally {
       setAiLoading(false);
+    }
+  };
+
+  const downloadPDF = async () => {
+    if (!aiContent) return;
+    
+    try {
+      // Dynamically load jsPDF from CDN
+      const jspdfModule = await new Promise((resolve, reject) => {
+        if (window.jspdf) {
+          resolve(window.jspdf);
+          return;
+        }
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+        script.onload = () => {
+          resolve(window.jspdf);
+        };
+        script.onerror = (e) => reject(e);
+        document.body.appendChild(script);
+      });
+
+      const { jsPDF } = jspdfModule;
+      const doc = new jsPDF();
+      
+      const title = `${aiContent.type.toUpperCase()} - ${aiContent.data.topic_name || activeSubObj?.subject_name || 'Study Resource'}`;
+      const filename = `${(aiContent.data.topic_name || activeSubObj?.subject_name || 'Study_Resource').replace(/[^a-z0-9]/gi, '_')}_${aiContent.type}.pdf`;
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(16);
+      doc.text(title, 15, 18);
+      
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(11);
+      
+      let yOffset = 28;
+      const pageHeight = doc.internal.pageSize.height;
+      
+      const writeLine = (text, style = "normal", isBold = false) => {
+        doc.setFont("helvetica", isBold ? "bold" : "normal");
+        const lines = doc.splitTextToSize(text, 180);
+        lines.forEach(line => {
+          if (yOffset > pageHeight - 15) {
+            doc.addPage();
+            yOffset = 15;
+          }
+          doc.text(line, 15, yOffset);
+          yOffset += 6;
+        });
+      };
+
+      if (aiContent.type === 'summary') {
+        writeLine(aiContent.data.summary);
+      } else if (aiContent.type === 'explanation') {
+        writeLine(aiContent.data.explanation);
+      } else if (aiContent.type === 'hints') {
+        aiContent.data.hints.forEach((hint, i) => {
+          writeLine(`${i + 1}. ${hint}`);
+          yOffset += 2;
+        });
+      } else if (aiContent.type === 'flashcards') {
+        aiContent.data.flashcards.forEach((card, i) => {
+          writeLine(`Card ${i + 1}:`, "normal", true);
+          writeLine(`Front: ${card.front}`);
+          writeLine(`Back: ${card.back}`);
+          yOffset += 4;
+        });
+      } else if (aiContent.type === 'wellness') {
+        writeLine(`Wellness Tip:`, "normal", true);
+        writeLine(aiContent.data.wellness_tip);
+        yOffset += 4;
+        writeLine(`Motivation Quote:`, "normal", true);
+        writeLine(`"${aiContent.data.motivation_quote}"`);
+        yOffset += 4;
+        writeLine(`Break Activity:`, "normal", true);
+        writeLine(aiContent.data.break_activity);
+        yOffset += 4;
+        writeLine(`Health Reminder:`, "normal", true);
+        writeLine(aiContent.data.health_reminder);
+      } else if (aiContent.type === 'study-strategy') {
+        writeLine(`Strategy Summary:`, "normal", true);
+        writeLine(aiContent.data.strategy_summary);
+        yOffset += 4;
+        if (aiContent.data.topic_order) {
+          writeLine(`Recommended Topic Order:`, "normal", true);
+          aiContent.data.topic_order.forEach((t, i) => {
+            writeLine(`${i + 1}. ${t}`);
+          });
+          yOffset += 4;
+        }
+        if (aiContent.data.time_allocation) {
+          writeLine(`Time Allocation:`, "normal", true);
+          aiContent.data.time_allocation.forEach(a => {
+            writeLine(`• ${a.topic}: ${a.hours}h - Technique: ${a.technique || 'N/A'}`);
+          });
+          yOffset += 4;
+        }
+        if (aiContent.data.revision_tips) {
+          writeLine(`Revision Tips:`, "normal", true);
+          aiContent.data.revision_tips.forEach(tip => {
+            writeLine(`• ${tip}`);
+          });
+          yOffset += 4;
+        }
+        if (aiContent.data.motivation) {
+          writeLine(`Motivation Note:`, "normal", true);
+          writeLine(aiContent.data.motivation);
+        }
+      } else if (aiContent.type === 'mocktest') {
+        aiContent.data.questions.forEach((q, i) => {
+          writeLine(`Q${i + 1}. ${q.question_text} (${q.difficulty || 'Medium'})`, "normal", true);
+          writeLine(`A. ${q.option_a}`);
+          writeLine(`B. ${q.option_b}`);
+          writeLine(`C. ${q.option_c}`);
+          writeLine(`D. ${q.option_d}`);
+          writeLine(`Correct Option: ${q.correct_option}`, "normal", true);
+          writeLine(`Explanation: ${q.explanation}`);
+          yOffset += 4;
+        });
+      }
+
+      doc.save(filename);
+    } catch (err) {
+      alert("Failed to download PDF: " + err.message);
     }
   };
 
@@ -255,124 +386,7 @@ function StudyTracker() {
                 </div>
               )}
 
-              {/* AI Content Display Panel */}
-              {aiLoading && (
-                <div style={{marginTop: '24px', padding: '24px', background: '#f9fafb', borderRadius: '12px', border: '1px solid var(--border-color)', textAlign: 'center'}}>
-                  <p style={{fontSize: '1.1rem', color: 'var(--accent-color)'}}>Generating with Llama 3... This may take 15-30 seconds.</p>
-                </div>
-              )}
 
-              {aiContent && !aiLoading && (
-                <div style={{marginTop: '24px', padding: '20px', background: '#f0f9ff', borderRadius: '12px', border: '1px solid #bae6fd'}}>
-                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px'}}>
-                    <h3 style={{margin: 0, fontSize: '1rem'}}>
-                      {aiContent.type === 'summary' && 'AI Summary'}
-                      {aiContent.type === 'flashcards' && 'AI Flashcards'}
-                      {aiContent.type === 'hints' && 'AI Study Hints'}
-                      {aiContent.type === 'explanation' && 'AI Explanation'}
-                      {aiContent.type === 'study-strategy' && 'AI Study Strategy'}
-                      {aiContent.type === 'wellness' && 'Wellness Tip'}
-                      {aiContent.type === 'mocktest' && 'Mock Test'}
-                      {aiContent.data.topic_name ? ` — ${aiContent.data.topic_name}` : ''}
-                    </h3>
-                    <button onClick={() => setAiContent(null)} style={{background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', color: 'var(--text-secondary)'}}>x</button>
-                  </div>
-
-                  {/* Summary */}
-                  {aiContent.type === 'summary' && (
-                    <div style={{lineHeight: 1.7, fontSize: '0.95rem', whiteSpace: 'pre-wrap'}}>{aiContent.data.summary}</div>
-                  )}
-
-                  {/* Flashcards */}
-                  {aiContent.type === 'flashcards' && (
-                    <div style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
-                      {aiContent.data.flashcards.map((card, i) => (
-                        <FlashcardWidget key={i} front={card.front} back={card.back} index={i} />
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Hints */}
-                  {aiContent.type === 'hints' && (
-                    <ul style={{paddingLeft: '20px', lineHeight: 1.8}}>
-                      {aiContent.data.hints.map((hint, i) => (
-                        <li key={i} style={{fontSize: '0.95rem', marginBottom: '6px'}}>{hint}</li>
-                      ))}
-                    </ul>
-                  )}
-
-                  {/* Explanation */}
-                  {aiContent.type === 'explanation' && (
-                    <div style={{lineHeight: 1.7, fontSize: '0.95rem', whiteSpace: 'pre-wrap'}}>{aiContent.data.explanation}</div>
-                  )}
-
-                  {/* Study Strategy */}
-                  {aiContent.type === 'study-strategy' && aiContent.data && (
-                    <div style={{display: 'flex', flexDirection: 'column', gap: '16px'}}>
-                      <p style={{fontSize: '0.95rem', lineHeight: 1.6, fontStyle: 'italic'}}>{aiContent.data.strategy_summary}</p>
-                      
-                      {aiContent.data.topic_order?.length > 0 && (
-                        <div>
-                          <h4 style={{margin: '0 0 8px 0', fontSize: '0.9rem'}}>Recommended Study Order:</h4>
-                          <ol style={{paddingLeft: '20px', margin: 0}}>
-                            {aiContent.data.topic_order.map((t, i) => <li key={i} style={{marginBottom: '4px'}}>{t}</li>)}
-                          </ol>
-                        </div>
-                      )}
-
-                      {aiContent.data.time_allocation?.length > 0 && (
-                        <div>
-                          <h4 style={{margin: '0 0 8px 0', fontSize: '0.9rem'}}>Time Allocation:</h4>
-                          {aiContent.data.time_allocation.map((a, i) => (
-                            <div key={i} style={{padding: '8px 12px', background: '#fff', borderRadius: '8px', border: '1px solid var(--border-color)', marginBottom: '6px'}}>
-                              <strong>{a.topic}</strong> — {a.hours}h {a.technique && `(${a.technique})`}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {aiContent.data.revision_tips?.length > 0 && (
-                        <div>
-                          <h4 style={{margin: '0 0 8px 0', fontSize: '0.9rem'}}>Revision Tips:</h4>
-                          <ul style={{paddingLeft: '20px', margin: 0}}>
-                            {aiContent.data.revision_tips.map((t, i) => <li key={i} style={{marginBottom: '4px'}}>{t}</li>)}
-                          </ul>
-                        </div>
-                      )}
-
-                      {aiContent.data.motivation && (
-                        <div style={{padding: '12px', background: '#fef3c7', borderRadius: '8px', textAlign: 'center', fontStyle: 'italic'}}>
-                          {aiContent.data.motivation}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Wellness */}
-                  {aiContent.type === 'wellness' && aiContent.data && (
-                    <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
-                      <div style={{fontSize: '2rem', textAlign: 'center'}}>{aiContent.data.mood_emoji || '😊'}</div>
-                      <div style={{padding: '12px', background: '#ecfdf5', borderRadius: '8px'}}>
-                        <strong>Wellness Tip:</strong> {aiContent.data.wellness_tip}
-                      </div>
-                      <div style={{padding: '12px', background: '#fef3c7', borderRadius: '8px', fontStyle: 'italic', textAlign: 'center'}}>
-                        "{aiContent.data.motivation_quote}"
-                      </div>
-                      <div style={{padding: '12px', background: '#eff6ff', borderRadius: '8px'}}>
-                        <strong>Break Activity:</strong> {aiContent.data.break_activity}
-                      </div>
-                      <div style={{padding: '12px', background: '#fef2f2', borderRadius: '8px'}}>
-                        <strong>Health:</strong> {aiContent.data.health_reminder}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Mock Test */}
-                  {aiContent.type === 'mocktest' && aiContent.data?.questions && (
-                    <MockTestPanel questions={aiContent.data.questions} />
-                  )}
-                </div>
-              )}
 
               {/* Subject-Level AI Actions */}
               {activeSubObj.topics?.length > 0 && (
@@ -395,6 +409,187 @@ function StudyTracker() {
           )}
         </div>
       </div>
+
+    {/* AI Content Modal Overlay */}
+    {(aiLoading || aiContent) && (
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'rgba(15, 23, 42, 0.65)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1000,
+        padding: '20px'
+      }} onClick={() => { if (!aiLoading) setAiContent(null); }}>
+        <div style={{
+          background: '#fff',
+          borderRadius: '16px',
+          width: '100%',
+          maxWidth: '650px',
+          maxHeight: '85vh',
+          overflowY: 'auto',
+          padding: '24px',
+          boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)',
+          position: 'relative',
+          display: 'flex',
+          flexDirection: 'column'
+        }} onClick={(e) => e.stopPropagation()}>
+          
+          {aiLoading ? (
+            <div style={{ textAlign: 'center', padding: '40px 0' }}>
+              <div style={{
+                border: '4px solid #f3f3f3',
+                borderTop: '4px solid var(--accent-color)',
+                borderRadius: '50%',
+                width: '40px',
+                height: '40px',
+                animation: 'spin 1s linear infinite',
+                margin: '0 auto 16px auto'
+              }}></div>
+              <h3 style={{ margin: 0, color: 'var(--accent-color)' }}>Generating with local Llama AI...</h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '8px', marginBottom: 0 }}>This may take 15-30 seconds. Thank you for your patience!</p>
+            </div>
+          ) : (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
+                <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#1e293b' }}>
+                  {aiContent.type === 'summary' && '📚 AI Summary'}
+                  {aiContent.type === 'flashcards' && '🎴 AI Flashcards'}
+                  {aiContent.type === 'hints' && '💡 AI Study Hints'}
+                  {aiContent.type === 'explanation' && '🔬 AI Explanation'}
+                  {aiContent.type === 'study-strategy' && '📅 AI Study Strategy'}
+                  {aiContent.type === 'wellness' && '🌸 Wellness Tip'}
+                  {aiContent.type === 'mocktest' && '📝 Mock Test'}
+                  {aiContent.data.topic_name ? ` — ${aiContent.data.topic_name}` : ''}
+                </h3>
+                <button onClick={() => setAiContent(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.5rem', color: '#94a3b8', padding: 0 }}>&times;</button>
+              </div>
+
+              <div style={{ flex: 1, overflowY: 'auto', marginBottom: '20px', paddingRight: '4px' }}>
+                {/* Summary */}
+                {aiContent.type === 'summary' && (
+                  <div>
+                    <div style={{ lineHeight: 1.7, fontSize: '0.95rem', whiteSpace: 'pre-wrap', marginBottom: '20px' }} dangerouslySetInnerHTML={renderMarkdown(aiContent.data.summary)} />
+                    <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: '0.9rem', color: '#475569' }}>🌐 Recommended Online References:</h4>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        <a href={`https://www.google.com/search?q=${encodeURIComponent(aiContent.data.topic_name || '')}`} target="_blank" rel="noreferrer" className="btn" style={{ padding: '4px 10px', fontSize: '0.75rem', background: '#3b82f6', textDecoration: 'none', color: '#fff' }}>Google Search</a>
+                        <a href={`https://en.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(aiContent.data.topic_name || '')}`} target="_blank" rel="noreferrer" className="btn" style={{ padding: '4px 10px', fontSize: '0.75rem', background: '#10b981', textDecoration: 'none', color: '#fff' }}>Wikipedia</a>
+                        <a href={`https://www.geeksforgeeks.org/search/${encodeURIComponent(aiContent.data.topic_name || '')}`} target="_blank" rel="noreferrer" className="btn" style={{ padding: '4px 10px', fontSize: '0.75rem', background: '#059669', textDecoration: 'none', color: '#fff' }}>GeeksforGeeks</a>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Flashcards */}
+                {aiContent.type === 'flashcards' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {aiContent.data.flashcards.map((card, i) => (
+                      <FlashcardWidget key={i} front={card.front} back={card.back} index={i} />
+                    ))}
+                  </div>
+                )}
+
+                {/* Hints */}
+                {aiContent.type === 'hints' && (
+                  <ul style={{ paddingLeft: '20px', lineHeight: 1.8, margin: 0 }}>
+                    {aiContent.data.hints.map((hint, i) => (
+                      <li key={i} style={{ fontSize: '0.95rem', marginBottom: '6px' }}>{hint}</li>
+                    ))}
+                  </ul>
+                )}
+
+                {/* Explanation */}
+                {aiContent.type === 'explanation' && (
+                  <div style={{ lineHeight: 1.7, fontSize: '0.95rem', whiteSpace: 'pre-wrap' }} dangerouslySetInnerHTML={renderMarkdown(aiContent.data.explanation)} />
+                )}
+
+                {/* Study Strategy */}
+                {aiContent.type === 'study-strategy' && aiContent.data && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <p style={{ fontSize: '0.95rem', lineHeight: 1.6, fontStyle: 'italic', margin: 0 }}>{aiContent.data.strategy_summary}</p>
+                    
+                    {aiContent.data.topic_order?.length > 0 && (
+                      <div>
+                        <h4 style={{ margin: '0 0 8px 0', fontSize: '0.9rem' }}>Recommended Study Order:</h4>
+                        <ol style={{ paddingLeft: '20px', margin: 0 }}>
+                          {aiContent.data.topic_order.map((t, i) => <li key={i} style={{ marginBottom: '4px' }}>{t}</li>)}
+                        </ol>
+                      </div>
+                    )}
+
+                    {aiContent.data.time_allocation?.length > 0 && (
+                      <div>
+                        <h4 style={{ margin: '0 0 8px 0', fontSize: '0.9rem' }}>Time Allocation:</h4>
+                        {aiContent.data.time_allocation.map((a, i) => (
+                          <div key={i} style={{ padding: '8px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid var(--border-color)', marginBottom: '6px' }}>
+                            <strong>{a.topic}</strong> — {a.hours}h {a.technique && `(${a.technique})`}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {aiContent.data.revision_tips?.length > 0 && (
+                      <div>
+                        <h4 style={{ margin: '0 0 8px 0', fontSize: '0.9rem' }}>Revision Tips:</h4>
+                        <ul style={{ paddingLeft: '20px', margin: 0 }}>
+                          {aiContent.data.revision_tips.map((t, i) => <li key={i} style={{ marginBottom: '4px' }}>{t}</li>)}
+                        </ul>
+                      </div>
+                    )}
+
+                    {aiContent.data.motivation && (
+                      <div style={{ padding: '12px', background: '#fef3c7', borderRadius: '8px', textAlign: 'center', fontStyle: 'italic', margin: 0 }}>
+                        {aiContent.data.motivation}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Wellness */}
+                {aiContent.type === 'wellness' && aiContent.data && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ fontSize: '2rem', textAlign: 'center' }}>{aiContent.data.mood_emoji || '😊'}</div>
+                    <div style={{ padding: '12px', background: '#ecfdf5', borderRadius: '8px' }}>
+                      <strong>Wellness Tip:</strong> {aiContent.data.wellness_tip}
+                    </div>
+                    <div style={{ padding: '12px', background: '#fef3c7', borderRadius: '8px', fontStyle: 'italic', textAlign: 'center' }}>
+                      "{aiContent.data.motivation_quote}"
+                    </div>
+                    <div style={{ padding: '12px', background: '#eff6ff', borderRadius: '8px' }}>
+                      <strong>Break Activity:</strong> {aiContent.data.break_activity}
+                    </div>
+                    <div style={{ padding: '12px', background: '#fef2f2', borderRadius: '8px' }}>
+                      <strong>Health:</strong> {aiContent.data.health_reminder}
+                    </div>
+                  </div>
+                )}
+
+                {/* Mock Test */}
+                {aiContent.type === 'mocktest' && aiContent.data?.questions && (
+                  <MockTestPanel questions={aiContent.data.questions} />
+                )}
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', borderTop: '1px solid var(--border-color)', paddingTop: '14px' }}>
+                <button className="btn" onClick={downloadPDF} style={{ background: 'var(--success-color)' }}>
+                  📥 Download PDF
+                </button>
+                <button className="btn btn-secondary" onClick={() => setAiContent(null)}>
+                  Close
+                </button>
+              </div>
+            </>
+          )}
+
+        </div>
+      </div>
+    )}
     </div>
   );
 }

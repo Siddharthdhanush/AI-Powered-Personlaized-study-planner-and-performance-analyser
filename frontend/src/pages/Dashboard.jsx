@@ -7,8 +7,6 @@ function Dashboard() {
   const [preferences, setPreferences] = useState(null);
   const [timetable, setTimetable] = useState([]);
   const [subjects, setSubjects] = useState([]);
-  const [mlAnalytics, setMlAnalytics] = useState(null);
-  const [showAnalytics, setShowAnalytics] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState(null);
   const [editSessionData, setEditSessionData] = useState({ planned_date: '', planned_minutes: 0, start_time: '', end_time: '' });
   const [viewMode, setViewMode] = useState('list');
@@ -102,7 +100,10 @@ function Dashboard() {
   const pendingSessions = timetable.filter(t => !t.is_completed);
   const completedSessions = timetable.filter(t => t.is_completed);
 
-  const showQuizAlert = completedSessions.length > 0 && completedSessions.length % 3 === 0;
+  const dismissedCount = parseInt(localStorage.getItem('quiz_alert_dismissed_at') || '0');
+  const showQuizAlert = completedSessions.length > 0 && 
+                        completedSessions.length % 3 === 0 && 
+                        completedSessions.length !== dismissedCount;
   const lastThreeCompletedSessions = completedSessions.slice(-3);
   const lastThreeTopicIds = Array.from(new Set(lastThreeCompletedSessions.map(s => s.topic_id)));
 
@@ -117,18 +118,8 @@ function Dashboard() {
           <button className="btn" onClick={() => navigate('/syllabus')} style={{background: 'var(--success-color)'}}>
             📅 Create Timetable
           </button>
-          <button className="btn btn-secondary" onClick={async () => {
-            if (!mlAnalytics) {
-              try {
-                const res = await api.get('/ml/analytics');
-                setMlAnalytics(res.data);
-              } catch (e) {
-                alert("Failed to load ML Analytics");
-              }
-            }
-            setShowAnalytics(!showAnalytics);
-          }}>
-            📈 {showAnalytics ? 'Hide Performance' : 'Check Performance'}
+          <button className="btn btn-secondary" onClick={() => navigate('/performance')}>
+            📈 Performance Hub
           </button>
           <button className="btn btn-secondary" onClick={() => navigate('/quiz')}>
             🧠 Take a Quiz
@@ -157,7 +148,10 @@ function Dashboard() {
           </div>
           <button 
             className="btn" 
-            onClick={() => navigate('/quiz', { state: { topicIds: lastThreeTopicIds } })} 
+            onClick={() => {
+              localStorage.setItem('quiz_alert_dismissed_at', completedSessions.length.toString());
+              navigate('/quiz', { state: { topicIds: lastThreeTopicIds } });
+            }} 
             style={{ background: '#d97706', color: '#fff', border: 'none', padding: '8px 16px', fontWeight: 600 }}
           >
             Start Quiz
@@ -309,7 +303,24 @@ function Dashboard() {
                               )}
                             </td>
                             <td style={{padding: '12px 8px', verticalAlign: 'middle'}}>
-                              <span style={{fontSize: '0.95rem', fontWeight: 500}}>{getTopicName(plan.topic_id)}</span>
+                              <span style={{fontSize: '0.95rem', fontWeight: 500}}>
+                                {getTopicName(plan.topic_id)}
+                                {plan.is_remedial && (
+                                  <span style={{
+                                    marginLeft: '8px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700,
+                                    background: '#fee2e2',
+                                    color: '#ef4444',
+                                    padding: '2px 8px',
+                                    borderRadius: '12px',
+                                    border: '1px solid #fca5a5',
+                                    display: 'inline-block'
+                                  }}>
+                                    🔄 Remedial Review
+                                  </span>
+                                )}
+                              </span>
                             </td>
                             <td style={{padding: '12px 8px', verticalAlign: 'middle'}}>
                               {isEditing ? (
@@ -406,42 +417,7 @@ function Dashboard() {
             </p>
           </div>
 
-          {showAnalytics && mlAnalytics && (
-            <div style={{background: '#eff6ff', padding: '16px', borderRadius: '12px', border: '1px solid #bfdbfe', marginBottom: '16px'}}>
-              <h3 style={{fontSize: '1rem', margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px'}}>
-                🤖 ML Engine Insights
-              </h3>
-              <div style={{marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '12px'}}>
-                <div style={{display: 'flex', justifyContent: 'space-between'}}>
-                  <span style={{color: 'var(--text-secondary)', fontSize: '0.95rem'}}>Predicted Exam Readiness:</span>
-                  <span style={{fontWeight: 700, color: mlAnalytics.exam_readiness_prob > 0.7 ? 'var(--success-color)' : 'var(--accent-color)'}}>
-                    {Math.round(mlAnalytics.exam_readiness_prob * 100)}%
-                  </span>
-                </div>
-                <div style={{display: 'flex', justifyContent: 'space-between'}}>
-                  <span style={{color: 'var(--text-secondary)', fontSize: '0.95rem'}}>Overall Topic Mastery:</span>
-                  <span style={{fontWeight: 700}}>{mlAnalytics.topic_mastery}</span>
-                </div>
-                <div style={{display: 'flex', justifyContent: 'space-between'}}>
-                  <span style={{color: 'var(--text-secondary)', fontSize: '0.95rem'}}>Historical MCQ Accuracy:</span>
-                  <span style={{fontWeight: 700}}>{mlAnalytics.mcq_accuracy}%</span>
-                </div>
-                {mlAnalytics.weak_topics && mlAnalytics.weak_topics.length > 0 && (
-                  <div style={{marginTop: '8px', borderTop: '1px dashed #bfdbfe', paddingTop: '8px'}}>
-                    <span style={{color: 'var(--danger-color)', fontSize: '0.9rem', fontWeight: 700, display: 'block', marginBottom: '4px'}}>⚠️ Weak Topics (&lt; 60% score):</span>
-                    <ul style={{margin: 0, paddingLeft: '20px', fontSize: '0.85rem', color: 'var(--text-primary)'}}>
-                      {mlAnalytics.weak_topics.map((t, idx) => (
-                        <li key={idx}>{t}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                <div style={{fontSize: '0.75rem', color: '#94a3b8', marginTop: '8px', textAlign: 'right'}}>
-                  Based on behavior tracking models.
-                </div>
-              </div>
-            </div>
-          )}
+
 
           <h3>Recent History</h3>
           <ul style={{listStyle: 'none', padding: 0}}>
@@ -609,7 +585,7 @@ function WeeklyGridView({ timetable, getTopicName, handleCompleteSession, handle
                         }}
                       >
                         <div style={{ fontWeight: 600, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }} title={getTopicName(plan.topic_id)}>
-                          {getTopicName(plan.topic_id)}
+                          {plan.is_remedial ? '🔄 [Remedial] ' : ''}{getTopicName(plan.topic_id)}
                         </div>
                         <div style={{ fontSize: '0.7rem', opacity: 0.9, marginTop: '2px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <span>🕒 {plan.start_time} - {plan.end_time} ({plan.planned_minutes}m)</span>

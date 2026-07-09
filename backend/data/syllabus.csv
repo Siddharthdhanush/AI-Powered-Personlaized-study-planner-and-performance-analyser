@@ -1,0 +1,81 @@
+subject_id,student_id,subject_name,topic_id,topic_name,difficulty_weight,estimated_hours
+1,1,AIML,3,Problem Solving & Uninformed Search Strategies,4.0,3.0
+1,1,AIML,4,"Breadth-first Search, Depth-first Search, Depth-limited Search and Iterative Deepening Depth First Search",5.0,2.0
+1,1,AIML,5,Informed (Heuristic) Search Strategies,4.0,3.0
+1,1,AIML,6,"A* Search, Heuristic Functions",5.0,2.5
+1,1,AIML,7,Local Search Algorithms and Optimization Problems,4.0,3.0
+1,1,AIML,8,"Hill-climbing Search, Simulated Annealing, Local-beam Search, Genetic Algorithms",5.0,2.5
+1,1,AIML,9,"Adversarial search: Games, Optimal decision in games, Alpha-Beta Pruning",4.0,3.0
+1,1,AIML,10,"Supervised Learning: Basic Concepts, General Framework for Classification",3.0,2.5
+1,1,AIML,11,Decision Tree Classifier-A Basic Algorithm to Build a Decision Tree,4.0,3.0
+1,1,AIML,12,"Methods for Expressing Attribute Test Conditions, Measures for Selecting an Attribute Test Condition",5.0,2.5
+1,1,AIML,13,Model Overfitting- Reasons for Model Overfitting,4.0,3.0
+1,1,AIML,14,"Model Selection - Using a Validation Set, Incorporating Model Complexity, Estimating Statistical Bounds",5.0,2.5
+1,1,AIML,15,"Naive Bayes Classifier-Basics of Probability Theory, Naive Bayes assumption",4.0,3.0
+1,1,AIML,16,"Logistic Regression-Logistic Regression as a Generalized Linear Model, Learning Model Parameters",5.0,2.5
+1,1,AIML,17,"Ensemble Methods – Methods for constructing Ensemble classifier, Bagging, Boosting, Random Forests",4.0,3.0
+1,1,AIML,18,"Unsupervised Learning- Overview, What Is Cluster Analysis",3.0,2.5
+1,1,AIML,19,K-means-The Basic K-means Algorithm,4.0,3.0
+1,1,AIML,20,"Cluster Evaluation-Overview, Unsupervised Cluster Evaluation Using Cohesion and Separation",5.0,2.5
+1,1,AIML,25,Logistic regression algorithm,4.0,3.0
+1,1,AIML,26,Naïve Bayes Classifier,4.0,3.0
+1,1,AIML,27,KNN algorithm,5.0,2.5
+2,1,FCPS,29,Cyber-Physical Systems Basics and Fundamentals,2.0,1.5
+2,1,FCPS,30,"Computer Architecture-Processors, Basic System Architecture, Interrupts",3.5,2.8
+2,1,FCPS,31,Embedded Computer Architecture,4.0,3.2
+2,1,FCPS,32,Sensors,3.5,2.8
+2,1,FCPS,33,Actuators,4.0,3.2
+2,1,FCPS,34,"Robotic Arm, Sensing, Actuation, Automation and Autonomy",5.0,4.0
+2,1,FCPS,35,RaspberryPi3 Servo Motor Control using Python,5.0,4.0
+2,1,FCPS,36,Jetson Nano USB Camera Image Processing and Notification,5.0,4.0
+2,1,FCPS,37,OpenCV Region of Interest Marking on Jetson Nano,5.0,4.0
+2,1,FCPS,38,Client-Server Communication using Modern Tools,4.0,3.0
+2,1,FCPS,39,Sustainable Development Goals Prototype Development,5.0,4.0
+3,1,STATS,40,Descriptive Statistics,2.0,1.5
+3,1,STATS,41,Frequency Tables and Graphs,2.0,1.0
+3,1,STATS,42,Grouped Data,2.0,1.0
+3,1,STATS,43,Histograms,2.0,1.0
+3,1,STATS,44,Summarising Data Sets,3.0,1.5
+3,1,STATS,45,Sample Mean,2.0,1.0
+3,1,STATS,46,Sample Median,2.0,1.0
+3,1,STATS,47,Sample Mode,2.0,1.0
+3,1,STATS,48,Sample Variance,3.0,1.5
+3,1,STATS,49,Sample Standard Deviation,3.0,1.5
+3,1,STATS,50,Percentiles,2.0,1.0
+3,1,STATS,51,Box-Plots,3.0,1.5
+3,1,STATS,52,Sampling and Sampling Distributions,4.0,2.5
+3,1,STATS,53,Types of Sampling,3.0,1.5
+3,1,STATS,54,Sample Mean and Sample Variance,4.0,2.5
+3,1,STATS,55,Normal Distribution,3.0,1.5
+3,1,STATS,56,Approximating Binomial Distributions using Normal Distribution,4.0,2.5
+3,1,STATS,57,Poisson Distributions using Normal Distribution,4.0,2.5
+3,1,STATS,58,Correlation and Covariance,3.0,1.5
+3,1,STATS,59,Joint Behavior of Random Variables,4.0,2.5
+3,1,STATS,60,Correlation and Covariance Matrix,3.0,1.5
+3,1,STATS,61,Independent Random Variables,3.0,1.5
+3,1,STATS,62,Sums of Independent Random Variables,4.0,2.5
+3,1,STATS,63,Law of Large Numbers,3.0,1.5
+3,1,STATS,64,Central Limit Theorem,4.0,2.5
+3,1,STATS,65,Large Sample Estimation,4.0,2.5
+3,1,STATS,66,Statistical Inference,3.0,1.5
+3,1,STATS,67,Types of Estimators,4.0,2.5
+3,1,STATS,68,Point Estimation of a Population Parameter,3.0,1.5
+3,1,STATS,69,Interval Estimation,4.0,2.5
+3,1,STATS,70,Constructing a Confidence Interval,3.0,1.5
+3,1,STATS,71,Large-Sample Confidence Interval for a Population Mean,4.0,2.5
+3,1,STATS,72,Interpreting the Confidence Interval,3.0,1.5
+3,1,STATS,73,Estimating the Difference between Two Population Means,4.0,2.5
+3,1,STATS,74,Estimating the Difference between Two Binomial Distributions,4.0,2.5
+3,1,STATS,75,One-Sided Confidence Bounds,3.0,1.5
+3,1,STATS,76,Choosing the Sample Size,4.0,2.5
+3,1,STATS,77,Hypothesis Testing,4.0,2.5
+3,1,STATS,78,Testing of Hypothesis about Population Parameters,3.0,1.5
+3,1,STATS,79,Statistical Test of Hypothesis,4.0,2.5
+3,1,STATS,80,A Large-Sample Test about the Population Mean - Essentials of the test,3.0,1.5
+3,1,STATS,81,Calculating the p-Value,4.0,2.5
+3,1,STATS,82,Two Types of Errors,3.0,1.5
+3,1,STATS,83,Power of a Statistical Test,4.0,2.5
+3,1,STATS,84,A Large-Sample Test of Hypothesis for the Difference between Two Population Means,3.0,1.5
+3,1,STATS,85,Hypothesis Testing and Confidence Intervals,4.0,2.5
+3,1,STATS,86,Hypothesis Testing for the Binomial,3.0,1.5
+3,1,STATS,87,Some Comments on Testing of Hypothesis,2.0,1.0

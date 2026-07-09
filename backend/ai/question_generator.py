@@ -51,26 +51,29 @@ def generate_quiz_for_topic(topic_name: str, num_questions: int = 10) -> list:
 
 def generate_quiz_for_topics_adaptive(topics_list: list[dict]) -> list:
     """
-    topics_list is a list of dicts: [{"topic_name": str}]
-    Generates questions for each topic, letting the LLM decide the count adaptively based on complexity.
+    topics_list is a list of dicts: [{"topic_name": str, "num_questions": int}]
+    Generates questions for each topic adaptively.
     """
     all_generated_questions = []
     
     for t in topics_list:
         topic_name = t["topic_name"]
+        num_q = t.get("num_questions", 3)
+        if num_q <= 0:
+            continue
+            
+        mcq_count = max(1, num_q // 2)
+        multi_mcq_count = max(0, (num_q - mcq_count) // 2)
+        desc_count = num_q - mcq_count - multi_mcq_count
         
         prompt = f"""
         You are an experienced university professor.
-        Analyze the complexity and depth of the topic: "{topic_name}".
+        Generate a quiz with exactly {num_q} questions for the topic: "{topic_name}".
         
-        Dynamically determine the appropriate number of questions needed to comprehensively test a university student on this topic (typically between 5 and 15 questions, depending on the depth of the material).
-        
-        Generate that decided number of questions, ensuring:
-        1. A balanced mix of difficulty levels ("Easy", "Medium", and "Hard") across the questions.
-        2. A mix of question types:
-           - Multiple Choice Questions (MCQs): question_type = "MCQ". You MUST provide all four choices (option_a, option_b, option_c, option_d) as non-empty distinct strings. correct_option must be a single letter (A, B, C, or D).
-           - Multi-Correct Questions: question_type = "MULTI_MCQ". You MUST provide all four choices (option_a, option_b, option_c, option_d) as non-empty distinct strings. The correct_option MUST contain multiple letters separated by commas (e.g. "A,B") indicating all the correct options.
-           - Descriptive/Short Answer Questions: question_type = "DESCRIPTIVE". Set option_a, option_b, option_c, option_d to null. correct_option must contain key points or a model answer.
+        The quiz MUST contain:
+        - {mcq_count} Multiple Choice Questions (MCQs): question_type = "MCQ". You MUST provide all four choices (option_a, option_b, option_c, option_d) as non-empty distinct strings. correct_option must be a single letter (A, B, C, or D).
+        - {multi_mcq_count} Multi-Correct Questions: question_type = "MULTI_MCQ". You MUST provide all four choices (option_a, option_b, option_c, option_d) as non-empty distinct strings. The correct_option MUST contain multiple letters separated by commas (e.g. "A,B") indicating all the correct options.
+        - {desc_count} Descriptive/Short Answer Questions: question_type = "DESCRIPTIVE". Set option_a, option_b, option_c, option_d to null. correct_option must contain key points or a model answer.
         
         CRITICAL RULE FOR OPTIONS:
         For all "MCQ" and "MULTI_MCQ" questions, you MUST fill "option_a", "option_b", "option_c", and "option_d" with the actual answers. Under no circumstances should they be null, empty, or missing.
