@@ -59,7 +59,9 @@ def get_llama3_response(prompt_text: str, json_format: bool = False):
         "messages": messages,
         "keep_alive": -1,
         "options": {
-            "temperature": 0.0
+            "temperature": 0.0,
+            "num_gpu": 999,
+            "num_ctx": 8192
         }
     }
     

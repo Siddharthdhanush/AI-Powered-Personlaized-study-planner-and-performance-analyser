@@ -28,6 +28,14 @@ try:
 except Exception:
     pass
 
+try:
+    db = SessionLocal()
+    db.execute(text("ALTER TABLE topics ADD COLUMN content_text TEXT"))
+    db.commit()
+    db.close()
+except Exception:
+    pass
+
 app = FastAPI(title="AIML System API", description="Adaptive AI Exam Prep API")
 
 @app.on_event("startup")

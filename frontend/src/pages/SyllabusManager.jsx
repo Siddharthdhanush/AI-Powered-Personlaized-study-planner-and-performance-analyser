@@ -6,6 +6,7 @@ function SyllabusManager() {
   const [subjects, setSubjects] = useState([]);
   const [newSubject, setNewSubject] = useState('');
   const [selectedFile, setSelectedFile] = useState(null);
+  const [resourceFiles, setResourceFiles] = useState([]);
   
   // Topic state
   const [activeSubject, setActiveSubject] = useState(null);
@@ -19,6 +20,7 @@ function SyllabusManager() {
   const [editSubjectName, setEditSubjectName] = useState('');
   const [extractedTopics, setExtractedTopics] = useState(null);
   const [selectedSubjects, setSelectedSubjects] = useState([]);
+  const [isAddingTopics, setIsAddingTopics] = useState(false);
 
   const navigate = useNavigate();
 
@@ -48,18 +50,52 @@ function SyllabusManager() {
         const formData = new FormData();
         formData.append('file', selectedFile);
         
-        await api.post(`/syllabus/subjects/${createdSubjectId}/upload`, formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data'
-          }
-        });
+        await api.post(`/syllabus/subjects/${createdSubjectId}/upload`, formData);
+      }
+
+      // 3. Upload additional resources if selected
+      if (resourceFiles && resourceFiles.length > 0) {
+        for (const file of resourceFiles) {
+          const resFormData = new FormData();
+          resFormData.append('file', file);
+          await api.post(`/syllabus/subjects/${createdSubjectId}/resources`, resFormData);
+        }
       }
 
       setNewSubject('');
       setSelectedFile(null);
-      fetchSubjects();
+      setResourceFiles([]);
+      await fetchSubjects();
+      setActiveSubject(createdSubjectId);
     } catch (err) {
       alert('Failed to add subject or upload file');
+    }
+  };
+
+  const handleAddResource = async (e) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    if (!activeSubject) return;
+    try {
+      for (const file of Array.from(e.target.files)) {
+        const formData = new FormData();
+        formData.append('file', file);
+        await api.post(`/syllabus/subjects/${activeSubject}/resources`, formData);
+      }
+      fetchSubjects();
+    } catch (err) {
+      alert('Failed to upload resource');
+    }
+    // reset file input
+    e.target.value = null;
+  };
+
+  const handleDeleteResource = async (resourceId) => {
+    if (!window.confirm("Are you sure you want to delete this resource?")) return;
+    try {
+      await api.delete(`/syllabus/subjects/${activeSubject}/resources/${resourceId}`);
+      fetchSubjects();
+    } catch (err) {
+      alert('Failed to delete resource');
     }
   };
 
@@ -253,6 +289,39 @@ function SyllabusManager() {
                   type="file" 
                   accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
                   onChange={e => setSelectedFile(e.target.files[0])}
+                  style={{display: 'none'}}
+                />
+              </div>
+              <div>
+                <label style={{fontSize: '0.9rem', fontWeight: 500, display: 'block', marginBottom: '6px'}}>Additional Resources (Optional)</label>
+                <label 
+                  htmlFor="resource-upload" 
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '10px 16px',
+                    background: '#f3f4f6',
+                    color: '#4b5563',
+                    border: '1px dashed #9ca3af',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontSize: '0.9rem',
+                    fontWeight: 600,
+                    transition: 'all 0.2s',
+                    textAlign: 'center',
+                    justifyContent: 'center',
+                    width: '100%'
+                  }}
+                >
+                  <span>📎 {resourceFiles.length > 0 ? `${resourceFiles.length} file(s) selected` : 'Choose Resource Files'}</span>
+                </label>
+                <input 
+                  id="resource-upload"
+                  type="file" 
+                  multiple
+                  accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                  onChange={e => setResourceFiles(Array.from(e.target.files))}
                   style={{display: 'none'}}
                 />
               </div>
@@ -481,39 +550,89 @@ function SyllabusManager() {
                         
                         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                           <button 
-                            onClick={async () => {
+                            type="button"
+                            disabled={isAddingTopics}
+                            onClick={async (e) => {
+                              e.preventDefault();
                               const selected = extractedTopics.filter(t => t.selected);
                               if (selected.length === 0) {
                                 alert("Please select at least one topic.");
                                 return;
                               }
+                              setIsAddingTopics(true);
                               try {
                                 await api.post(`/syllabus/subjects/${activeSubject}/topics/bulk`, selected.map(s => ({
                                   topic_name: s.topic_name,
-                                  difficulty_weight: s.difficulty_weight,
-                                  estimated_hours: s.estimated_hours
+                                  difficulty_weight: parseFloat(String(s.difficulty_weight).replace(/[^\d.-]/g, '')) || 2.0,
+                                  estimated_hours: parseFloat(String(s.estimated_hours).replace(/[^\d.-]/g, '')) || 2.0
                                 })));
                                 setExtractedTopics(null);
                                 alert(`Successfully added ${selected.length} topics!`);
                                 fetchSubjects();
                               } catch (err) {
-                                alert("Failed to add topics.");
+                                alert(`Failed to add topics: ${err.response?.data?.detail || err.message}`);
+                              } finally {
+                                setIsAddingTopics(false);
                               }
                             }}
                             className="btn"
-                            style={{ background: 'var(--success-color)' }}
+                            style={{ background: isAddingTopics ? '#9ca3af' : 'var(--success-color)', cursor: isAddingTopics ? 'not-allowed' : 'pointer' }}
                           >
-                            Add Selected Topics
+                            {isAddingTopics ? 'Extracting Context & Saving...' : 'Add Selected Topics'}
                           </button>
                           <button 
                             onClick={() => setExtractedTopics(null)} 
                             className="btn btn-secondary"
+                            disabled={isAddingTopics}
                           >
                             Cancel
                           </button>
                         </div>
                       </div>
                     )}
+
+                    {/* Additional Resources Section */}
+                    <div style={{background: '#f8fafc', padding: '16px', borderRadius: '12px', marginBottom: '24px', border: '1px solid var(--border-color)'}}>
+                      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px'}}>
+                        <h3 style={{fontSize: '1.05rem', margin: 0}}>Additional Resources</h3>
+                        <label 
+                          htmlFor="panel-resource-upload" 
+                          className="btn btn-secondary"
+                          style={{padding: '4px 12px', fontSize: '0.85rem', cursor: 'pointer', margin: 0}}
+                        >
+                          + Add Resource
+                        </label>
+                        <input 
+                          id="panel-resource-upload"
+                          type="file" 
+                          multiple
+                          accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                          onChange={handleAddResource}
+                          style={{display: 'none'}}
+                        />
+                      </div>
+                      
+                      {activeSubObj?.resources && activeSubObj.resources.length > 0 ? (
+                        <ul style={{listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '8px', margin: 0, padding: 0}}>
+                          {activeSubObj.resources.map(res => (
+                            <li key={res.resource_id} style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#fff', border: '1px solid var(--border-color)', borderRadius: '6px'}}>
+                              <span style={{fontSize: '0.9rem', fontWeight: 500, color: 'var(--text-primary)'}}>
+                                📎 {res.filename}
+                              </span>
+                              <button 
+                                onClick={() => handleDeleteResource(res.resource_id)}
+                                style={{background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.95rem', color: '#ef4444'}}
+                                title="Delete Resource"
+                              >
+                                🗑️
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p style={{fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0}}>No additional resources uploaded.</p>
+                      )}
+                    </div>
 
                     {/* Topics Section */}
                     <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px'}}>

@@ -8,6 +8,7 @@ class TopicBase(BaseModel):
     difficulty_weight: Optional[float] = 1.0
     estimated_hours: Optional[float] = 2.0
     preferred_time: Optional[str] = None
+    content_text: Optional[str] = None
 
 class TopicCreate(TopicBase):
     pass
@@ -33,6 +34,15 @@ class ExamOut(ExamBase):
     class Config:
         from_attributes = True
 
+class SubjectResourceOut(BaseModel):
+    resource_id: int
+    subject_id: int
+    filename: str
+    file_path: str
+
+    class Config:
+        from_attributes = True
+
 # --- Subject Schemas ---
 class SubjectBase(BaseModel):
     subject_name: str
@@ -46,6 +56,7 @@ class SubjectOut(SubjectBase):
     file_path: Optional[str] = None
     topics: List[TopicOut] = []
     exams: List[ExamOut] = []
+    resources: List[SubjectResourceOut] = []
 
     class Config:
         from_attributes = True

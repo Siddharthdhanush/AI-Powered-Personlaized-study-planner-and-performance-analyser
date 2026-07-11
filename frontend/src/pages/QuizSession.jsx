@@ -284,7 +284,7 @@ function QuizSession() {
                   <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
                     <p style={{fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '0 0 8px 0'}}><em>Select all that apply (Multiple Correct Answers):</em></p>
                     {['A', 'B', 'C', 'D'].map(opt => {
-                      const optionText = q[`option_${opt.toLowerCase()}`];
+                      const optionText = q[`option_${opt.toLowerCase()}`] || q[`option_${opt}`] || q[`Option_${opt}`];
                       if (!optionText) return null;
                       const isChecked = (answers[q.question_id] || '').split(',').includes(opt);
                       return (
@@ -319,7 +319,7 @@ function QuizSession() {
                 {!isMultiMCQ && q.question_type === 'MCQ' && (
                   <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
                     {['A', 'B', 'C', 'D'].map(opt => {
-                      const optionText = q[`option_${opt.toLowerCase()}`];
+                      const optionText = q[`option_${opt.toLowerCase()}`] || q[`option_${opt}`] || q[`Option_${opt}`];
                       if (!optionText) return null;
                       const isSelected = answers[q.question_id] === opt;
                       return (

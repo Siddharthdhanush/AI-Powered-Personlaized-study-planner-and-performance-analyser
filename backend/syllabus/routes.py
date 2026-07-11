@@ -7,6 +7,8 @@ from backend.core import database
 from backend.user import auth
 from backend.user.models import Student
 from . import models, schemas
+from backend.ai import document_parser
+from backend.ai.utils import get_semantic_context
 
 router = APIRouter()
 
@@ -96,6 +98,129 @@ def upload_syllabus_file(
 
     return {"info": f"file '{file.filename}' saved at '{file_location}'"}
 
+@router.post("/subjects/{subject_id}/resources", status_code=status.HTTP_201_CREATED, response_model=schemas.SubjectResourceOut)
+def upload_subject_resource(
+    subject_id: int,
+    file: UploadFile = File(...),
+    current_user: Student = Depends(auth.get_current_user),
+    db: Session = Depends(database.get_db)
+):
+    # Verify subject belongs to user
+    subject_record = db.query(models.Subject).filter(
+        models.Subject.subject_id == subject_id,
+        models.Subject.student_id == current_user.student_id
+    ).first()
+    
+    if not subject_record:
+        raise HTTPException(status_code=404, detail="Subject not found")
+
+    upload_dir = "uploads"
+    if not os.path.exists(upload_dir):
+        os.makedirs(upload_dir)
+
+    file_location = f"{upload_dir}/{subject_id}_resource_{file.filename}"
+    with open(file_location, "wb+") as file_object:
+        file_object.write(file.file.read())
+
+    new_resource = models.SubjectResource(
+        subject_id=subject_id,
+        filename=file.filename,
+        file_path=file_location
+    )
+    db.add(new_resource)
+    db.commit()
+    db.refresh(new_resource)
+
+    # Rebuild semantic context for all topics under this subject
+    raw_text = ""
+    if subject_record.file_path and os.path.exists(subject_record.file_path):
+        try:
+            with open(subject_record.file_path, "rb") as f:
+                file_bytes = f.read()
+            filename = os.path.basename(subject_record.file_path)
+            raw_text += document_parser.parse_document(file_bytes, filename) + "\n\n"
+        except Exception as e:
+            print(f"Error parsing syllabus: {e}")
+            
+    for res in subject_record.resources:
+        if res.file_path and os.path.exists(res.file_path):
+            try:
+                with open(res.file_path, "rb") as f:
+                    file_bytes = f.read()
+                filename = os.path.basename(res.file_path)
+                raw_text += document_parser.parse_document(file_bytes, filename) + "\n\n"
+            except Exception as e:
+                print(f"Error parsing resource: {e}")
+
+    if raw_text.strip():
+        for topic in subject_record.topics:
+            topic.content_text = get_semantic_context(raw_text, topic.topic_name)
+        db.commit()
+
+    return new_resource
+
+@router.delete("/subjects/{subject_id}/resources/{resource_id}")
+def delete_subject_resource(
+    subject_id: int,
+    resource_id: int,
+    current_user: Student = Depends(auth.get_current_user),
+    db: Session = Depends(database.get_db)
+):
+    subject_record = db.query(models.Subject).filter(
+        models.Subject.subject_id == subject_id,
+        models.Subject.student_id == current_user.student_id
+    ).first()
+    
+    if not subject_record:
+        raise HTTPException(status_code=404, detail="Subject not found")
+
+    resource = db.query(models.SubjectResource).filter(
+        models.SubjectResource.resource_id == resource_id,
+        models.SubjectResource.subject_id == subject_id
+    ).first()
+
+    if not resource:
+        raise HTTPException(status_code=404, detail="Resource not found")
+
+    if os.path.exists(resource.file_path):
+        try:
+            os.remove(resource.file_path)
+        except Exception as e:
+            print(f"Error removing file: {e}")
+
+    db.delete(resource)
+    db.commit()
+
+    # Rebuild contexts
+    raw_text = ""
+    if subject_record.file_path and os.path.exists(subject_record.file_path):
+        try:
+            with open(subject_record.file_path, "rb") as f:
+                file_bytes = f.read()
+            filename = os.path.basename(subject_record.file_path)
+            raw_text += document_parser.parse_document(file_bytes, filename) + "\n\n"
+        except Exception as e:
+            print(f"Error parsing syllabus: {e}")
+            
+    for res in subject_record.resources:
+        if res.file_path and os.path.exists(res.file_path):
+            try:
+                with open(res.file_path, "rb") as f:
+                    file_bytes = f.read()
+                filename = os.path.basename(res.file_path)
+                raw_text += document_parser.parse_document(file_bytes, filename) + "\n\n"
+            except Exception as e:
+                print(f"Error parsing resource: {e}")
+
+    for topic in subject_record.topics:
+        if raw_text.strip():
+            topic.content_text = get_semantic_context(raw_text, topic.topic_name)
+        else:
+            topic.content_text = ""
+    db.commit()
+
+    return {"message": "Resource deleted successfully"}
+
 # --- Topic Routes ---
 @router.post("/subjects/{subject_id}/topics", response_model=schemas.TopicOut, status_code=status.HTTP_201_CREATED)
 def create_topic(
@@ -113,11 +238,37 @@ def create_topic(
     if not subject_record:
         raise HTTPException(status_code=404, detail="Subject not found")
 
+    raw_text = ""
+    if subject_record.file_path and os.path.exists(subject_record.file_path):
+        try:
+            with open(subject_record.file_path, "rb") as f:
+                file_bytes = f.read()
+            filename = os.path.basename(subject_record.file_path)
+            raw_text += document_parser.parse_document(file_bytes, filename) + "\n\n"
+        except Exception as e:
+            print(f"Error parsing syllabus file for topic context: {e}")
+
+    for res in subject_record.resources:
+        if res.file_path and os.path.exists(res.file_path):
+            try:
+                with open(res.file_path, "rb") as f:
+                    file_bytes = f.read()
+                filename = os.path.basename(res.file_path)
+                raw_text += document_parser.parse_document(file_bytes, filename) + "\n\n"
+            except Exception as e:
+                print(f"Error parsing resource file for topic context: {e}")
+
+    content_text = ""
+    if raw_text:
+        content_text = get_semantic_context(raw_text, topic.topic_name)
+
     new_topic = models.Topic(
         subject_id=subject_id,
         topic_name=topic.topic_name,
         difficulty_weight=topic.difficulty_weight,
-        estimated_hours=topic.estimated_hours
+        estimated_hours=topic.estimated_hours,
+        preferred_time=topic.preferred_time,
+        content_text=content_text
     )
     db.add(new_topic)
     db.commit()
@@ -139,13 +290,39 @@ def create_topics_bulk(
     if not subject_record:
         raise HTTPException(status_code=404, detail="Subject not found")
 
+    raw_text = ""
+    if subject_record.file_path and os.path.exists(subject_record.file_path):
+        try:
+            with open(subject_record.file_path, "rb") as f:
+                file_bytes = f.read()
+            filename = os.path.basename(subject_record.file_path)
+            raw_text += document_parser.parse_document(file_bytes, filename) + "\n\n"
+        except Exception as e:
+            print(f"Error parsing syllabus file for bulk topic context: {e}")
+
+    for res in subject_record.resources:
+        if res.file_path and os.path.exists(res.file_path):
+            try:
+                with open(res.file_path, "rb") as f:
+                    file_bytes = f.read()
+                filename = os.path.basename(res.file_path)
+                raw_text += document_parser.parse_document(file_bytes, filename) + "\n\n"
+            except Exception as e:
+                print(f"Error parsing resource file for bulk topic context: {e}")
+
     added_topics = []
     for topic in topics:
+        content_text = ""
+        if raw_text:
+            content_text = get_semantic_context(raw_text, topic.topic_name)
+
         new_topic = models.Topic(
             subject_id=subject_id,
             topic_name=topic.topic_name,
             difficulty_weight=topic.difficulty_weight,
-            estimated_hours=topic.estimated_hours
+            estimated_hours=topic.estimated_hours,
+            preferred_time=topic.preferred_time,
+            content_text=content_text
         )
         db.add(new_topic)
         added_topics.append(new_topic)

@@ -28,7 +28,7 @@ def generate_quiz(
     db.commit()
         
     try:
-        raw_questions = question_generator.generate_quiz_for_topic(topic.topic_name, num_questions=9)
+        raw_questions = question_generator.generate_quiz_for_topic(topic.topic_name, num_questions=9, context=topic.content_text)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -125,7 +125,8 @@ def generate_adaptive_quiz(
         topics_list.append({
             "topic_id": topic.topic_id,
             "topic_name": topic.topic_name,
-            "num_questions": num_q
+            "num_questions": num_q,
+            "content_text": topic.content_text
         })
         
         # Clear old questions for this topic to avoid duplicates

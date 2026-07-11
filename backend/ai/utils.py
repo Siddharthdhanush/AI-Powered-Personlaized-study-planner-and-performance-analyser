@@ -79,3 +79,35 @@ def extract_topics_from_pdf(file_path: str):
     if "topics" not in result:
         raise HTTPException(status_code=500, detail="Ollama returned malformed JSON missing 'topics' array.")
     return result["topics"]
+
+def get_semantic_context(document_text: str, topic_name: str, top_k: int = 3) -> str:
+    """
+    Chunks the document_text and finds chunks containing the keyword (topic_name).
+    """
+    if not document_text or not document_text.strip():
+        return ""
+    
+    words = document_text.split()
+    chunks = []
+    chunk_size = 120  # ~600-800 characters
+    overlap = 30
+    
+    for i in range(0, len(words), chunk_size - overlap):
+        chunk = " ".join(words[i:i + chunk_size])
+        if chunk.strip():
+            chunks.append(chunk)
+            
+    if not chunks:
+        return ""
+        
+    matched_chunks = []
+    topic_lower = topic_name.lower()
+    for chunk in chunks:
+        if topic_lower in chunk.lower():
+            matched_chunks.append(chunk)
+            
+    if matched_chunks:
+        return "\n\n...[Context Section]...\n" + "\n\n".join(matched_chunks[:top_k])
+    
+    return ""
+
