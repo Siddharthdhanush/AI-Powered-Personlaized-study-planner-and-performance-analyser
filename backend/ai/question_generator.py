@@ -1,4 +1,4 @@
-from . import ollama_client, prompts
+from . import llm_client, prompts
 
 def generate_quiz_for_topic(topic_name: str, num_questions: int = 10, context: str = None) -> list:
     """
@@ -78,7 +78,7 @@ Return the response STRICTLY as a JSON array of objects in this exact format (no
 """
     
     # Send to Ollama (ollama_client now auto-unwraps dict->list)
-    structured_json = ollama_client.get_llama3_response(prompt, json_format=True)
+    structured_json = llm_client.generate_json(prompt, feature="quiz")
     
     # If it's a valid list of questions, return them
     if isinstance(structured_json, list):
@@ -146,7 +146,7 @@ Return the response STRICTLY as a JSON array of objects in this exact format (no
 ]
 """
         
-        structured_json = ollama_client.get_llama3_response(prompt, json_format=True)
+        structured_json = llm_client.generate_json(prompt, feature="quiz")
         if isinstance(structured_json, list):
             for q in structured_json:
                 q["topic_name"] = topic_name

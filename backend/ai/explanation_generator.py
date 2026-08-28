@@ -1,8 +1,8 @@
-from . import ollama_client
+from . import llm_client
 
 def generate_explanation(topic_name: str, concept: str = None) -> str:
     """
-    Generates a detailed explanation for a topic or specific concept using Llama 3.
+    Generates a detailed explanation for a topic or specific concept using centralized vLLM.
     """
     target = f'the concept "{concept}" within the topic "{topic_name}"' if concept else f'the topic "{topic_name}"'
     
@@ -20,7 +20,7 @@ def generate_explanation(topic_name: str, concept: str = None) -> str:
     Return ONLY the explanation text, no JSON formatting.
     """
     
-    result = ollama_client.get_llama3_response(prompt, json_format=False)
+    result = llm_client.generate_text(prompt, feature="explanation")
     
     if result and isinstance(result, str):
         return result.strip()

@@ -45,7 +45,7 @@ def generate_quiz(
             explanation=q_data.get("explanation", ""),
             difficulty=q_data.get("difficulty", "Medium"),
             question_type=q_data.get("question_type", "MCQ"),
-            generated_by="ollama"
+            generated_by="vllm"
         )
         db.add(q)
         saved_questions.append(q)
@@ -156,7 +156,7 @@ def generate_adaptive_quiz(
             explanation=q_data.get("explanation", ""),
             difficulty=q_data.get("difficulty", "Medium"),
             question_type=q_data.get("question_type", "MCQ"),
-            generated_by="ollama"
+            generated_by="vllm"
         )
         db.add(q)
         saved_questions.append(q)

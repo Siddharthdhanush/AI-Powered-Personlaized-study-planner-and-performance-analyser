@@ -1,8 +1,8 @@
-from . import ollama_client
+from . import llm_client
 
 def generate_wellness_tip(study_hours_today: float = 0, days_until_exam: int = 7) -> dict:
     """
-    Generates personalized wellness and mental health tips for students.
+    Generates personalized wellness and mental health tips for students using centralized vLLM.
     """
     prompt = f"""
     You are a supportive student wellness advisor.
@@ -27,7 +27,7 @@ def generate_wellness_tip(study_hours_today: float = 0, days_until_exam: int = 7
     }}
     """
     
-    result = ollama_client.get_llama3_response(prompt, json_format=True)
+    result = llm_client.generate_json(prompt, feature="wellness")
     
     if isinstance(result, dict) and "wellness_tip" in result:
         return result

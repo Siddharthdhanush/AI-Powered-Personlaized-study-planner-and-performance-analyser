@@ -1,8 +1,8 @@
-from . import ollama_client
+from . import llm_client
 
 def generate_mocktest(topic_names: list, num_questions: int = 10) -> list:
     """
-    Generates a full mock test across multiple topics using Llama 3.
+    Generates a full mock test across multiple topics using centralized vLLM.
     Returns a mix of easy, medium, and hard MCQs.
     """
     topics_str = ", ".join(topic_names)
@@ -32,7 +32,7 @@ def generate_mocktest(topic_names: list, num_questions: int = 10) -> list:
     ]
     """
     
-    result = ollama_client.get_llama3_response(prompt, json_format=True)
+    result = llm_client.generate_json(prompt, feature="mocktest")
     
     if isinstance(result, list):
         return result

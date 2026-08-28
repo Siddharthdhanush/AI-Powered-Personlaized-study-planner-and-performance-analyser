@@ -1,8 +1,8 @@
-from . import ollama_client
+from . import llm_client
 
 def generate_flashcards(topic_name: str, num_cards: int = 5) -> list:
     """
-    Generates flashcards for a topic using Llama 3.
+    Generates flashcards for a topic using centralized vLLM.
     """
     prompt = f"""
     You are an experienced university professor creating study flashcards.
@@ -17,7 +17,7 @@ def generate_flashcards(topic_name: str, num_cards: int = 5) -> list:
     ]
     """
     
-    result = ollama_client.get_llama3_response(prompt, json_format=True)
+    result = llm_client.generate_json(prompt, feature="flashcard")
     
     if isinstance(result, list):
         return result

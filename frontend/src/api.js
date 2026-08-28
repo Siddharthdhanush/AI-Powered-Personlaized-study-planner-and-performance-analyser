@@ -1,8 +1,11 @@
 import axios from 'axios';
 
-// Create an Axios instance pointing to the FastAPI backend
+// Read main server IP from .env file or default to current browser location hostname
+const mainServerIp = import.meta.env.VITE_MAIN_SERVER_IP || window.location.hostname || 'localhost';
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || `http://${mainServerIp}:8005/api`;
+
 const api = axios.create({
-  baseURL: 'http://127.0.0.1:8000/api',
+  baseURL: apiBaseUrl,
 });
 
 // Interceptor to attach the JWT token to every request if it exists
