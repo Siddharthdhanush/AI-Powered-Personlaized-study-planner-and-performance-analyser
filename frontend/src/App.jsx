@@ -6,6 +6,7 @@ import SyllabusManager from './pages/SyllabusManager';
 import QuizSession from './pages/QuizSession';
 import StudyTracker from './pages/StudyTracker';
 import PerformanceAnalytics from './pages/PerformanceAnalytics';
+import AdminDashboard from './pages/AdminDashboard';
 import api from './api';
 
 function Navigation() {
@@ -36,6 +37,7 @@ function Navigation() {
         <Link to="/tracker" className="nav-link">Tracker</Link>
         <Link to="/performance" className="nav-link">Performance</Link>
         <Link to="/profile" className="nav-link">Profile</Link>
+        <Link to="/admin" className="nav-link" style={{ color: "#38bdf8", fontWeight: "bold" }}>🖥️ Admin</Link>
         <button onClick={handleLogout} className="btn btn-secondary" style={{padding: '6px 12px', fontSize: '0.9rem'}}>Logout</button>
       </div>
     </nav>
@@ -55,6 +57,7 @@ function App() {
           <Route path="/quiz" element={<QuizSession />} />
           <Route path="/tracker" element={<StudyTracker />} />
           <Route path="/performance" element={<PerformanceAnalytics />} />
+          <Route path="/admin" element={<AdminDashboard />} />
         </Routes>
       </div>
     </BrowserRouter>

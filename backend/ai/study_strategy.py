@@ -1,8 +1,8 @@
-from . import ollama_client
+from . import llm_client
 
 def generate_study_strategy(topic_names: list, days_until_exam: int, hours_per_day: float = 3.0) -> dict:
     """
-    Generates a personalized study strategy based on topics and time available.
+    Generates a personalized study strategy based on topics and time available using centralized vLLM.
     """
     topics_str = ", ".join(topic_names)
     
@@ -31,7 +31,7 @@ def generate_study_strategy(topic_names: list, days_until_exam: int, hours_per_d
     }}
     """
     
-    result = ollama_client.get_llama3_response(prompt, json_format=True)
+    result = llm_client.generate_json(prompt, feature="study_strategy")
     
     if isinstance(result, dict) and "strategy_summary" in result:
         return result

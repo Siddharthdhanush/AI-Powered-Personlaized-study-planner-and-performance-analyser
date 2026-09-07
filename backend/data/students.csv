@@ -1,3 +1,4 @@
 student_id,name,email,password_hash,created_at
 1,Shreyank DK,shreyankdk092@gmail.com,$2b$12$4/hzBX9x8/XvE1FZrkzX.edk5xn31BDeCkCVwaiqtE.OiwEx3kxEu,2026-07-01 07:06:08.396153
 2,Test User,test@example.com,$2b$12$6CV0ifg/bs9d06llpfd3n.NL2zuIXcPUOBNJZhKn2KJDcD2l4bjmK,2026-07-10 18:57:25.127173
+3,Shreyank D K,shreyankdk43@gmail.com,$2b$12$GTjRPX6Or.bTukr.AkpceeTIrw02zR3PYKCeINM4KYgrWoFkysgKe,2026-08-27 11:04:09.451933

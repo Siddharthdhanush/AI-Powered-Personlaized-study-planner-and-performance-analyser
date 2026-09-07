@@ -1,8 +1,8 @@
-from . import ollama_client
+from . import llm_client
 
 def generate_summary(topic_name: str) -> str:
     """
-    Generates a concise study summary for a topic using Llama 3.
+    Generates a concise study summary for a topic using centralized vLLM.
     """
     prompt = f"""
     You are an experienced university professor creating study material.
@@ -17,7 +17,7 @@ def generate_summary(topic_name: str) -> str:
     Return ONLY the summary text, no JSON formatting needed.
     """
     
-    result = ollama_client.get_llama3_response(prompt, json_format=False)
+    result = llm_client.generate_text(prompt, feature="summary")
     
     if result and isinstance(result, str):
         return result.strip()

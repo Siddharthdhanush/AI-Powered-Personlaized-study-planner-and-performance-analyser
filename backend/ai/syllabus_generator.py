@@ -1,13 +1,13 @@
-from . import ollama_client, prompts
+from . import llm_client, prompts
 
 def extract_syllabus_topics(raw_text: str) -> list:
     """
-    Sends the raw syllabus text to Llama 3 to structure it into JSON topics.
+    Sends the raw syllabus text to centralized vLLM to structure it into JSON topics.
     """
     prompt = prompts.build_syllabus_extraction_prompt(raw_text)
     
-    # Send to Ollama (ollama_client now auto-unwraps dict->list)
-    structured_json = ollama_client.get_llama3_response(prompt, json_format=True)
+    # Send to vLLM via llm_client
+    structured_json = llm_client.generate_json(prompt, feature="syllabus")
     
     # If it's a valid list of topics, return them
     if isinstance(structured_json, list):

@@ -1,8 +1,8 @@
-from . import ollama_client
+from . import llm_client
 
 def generate_hints(topic_name: str, num_hints: int = 3) -> list:
     """
-    Generates study hints/tips for a topic using Llama 3.
+    Generates study hints/tips for a topic using centralized vLLM.
     """
     prompt = f"""
     You are an experienced university professor helping students study effectively.
@@ -15,7 +15,7 @@ def generate_hints(topic_name: str, num_hints: int = 3) -> list:
     ["Hint 1 text...", "Hint 2 text...", "Hint 3 text..."]
     """
     
-    result = ollama_client.get_llama3_response(prompt, json_format=True)
+    result = llm_client.generate_json(prompt, feature="hint")
     
     if isinstance(result, list):
         return result
